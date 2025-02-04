@@ -1,0 +1,33 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Define a radial gradient for the background -->
+  <defs>
+    <radialGradient id="bgGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4CAF50" />
+      <stop offset="100%" stop-color="#2E7D32" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Full-canvas background using the gradient -->
+  <rect width="1024" height="1024" fill="url(#bgGradient)" />
+
+  <!-- Center the house icon design -->
+  <g transform="translate(512,512)">
+    <!-- Position the house so that it is centered around (0,0) -->
+    <g transform="translate(-200,-200)">
+      <!-- House Base: A rounded rectangle -->
+      <rect x="0" y="100" width="400" height="250" fill="#FFFFFF" rx="20" ry="20" />
+      
+      <!-- Roof: A simple triangular shape -->
+      <polygon points="0,100 200,0 400,100" fill="#FFFFFF" />
+      
+      <!-- Door: A contrasting color with rounded corners -->
+      <rect x="170" y="230" width="60" height="120" fill="#2E7D32" rx="10" ry="10" />
+      
+      <!-- Left Window -->
+      <rect x="40" y="140" width="60" height="60" fill="#2E7D32" rx="10" ry="10" />
+      
+      <!-- Right Window -->
+      <rect x="300" y="140" width="60" height="60" fill="#2E7D32" rx="10" ry="10" />
+    </g>
+  </g>
+</svg>

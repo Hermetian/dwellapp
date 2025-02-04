@@ -1,0 +1,112 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <defs>
+    <linearGradient id="skyGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#87CEEB"/>
+      <stop offset="100%" stop-color="#ADD8E6"/>
+    </linearGradient>
+    <!-- Fire gradient -->
+    <linearGradient id="fireGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF4500"/>
+      <stop offset="50%" style="stop-color:#FF8C00"/>
+      <stop offset="100%" style="stop-color:#FFD700"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#skyGradient)"/>
+  
+  <!-- Burning House -->
+  <g id="house" transform="translate(100,450)">
+    <!-- Base house structure -->
+    <rect x="0" y="0" width="300" height="200" fill="#8B4513" stroke="#654321" stroke-width="5"/>
+    <polygon points="0,0 150,-100 300,0" fill="#8B0000" stroke="#654321" stroke-width="5"/>
+    
+    <!-- Better flames from earlier version -->
+    <g id="flames">
+      <!-- Base flames -->
+      <path d="M0,200 
+               C50,150 100,180 150,150
+               C200,120 250,150 300,200
+               L300,250 L0,250 Z" 
+            fill="url(#fireGradient)" opacity="0.9"/>
+      
+      <!-- Rising flames -->
+      <path d="M50,-20 
+               C75,-70 100,-40 125,-90
+               C150,-40 175,-70 200,-20" 
+            fill="#FF4500" opacity="0.8"/>
+      
+      <path d="M100,0 
+               C125,-50 150,-20 175,-70
+               C200,-20 225,-50 250,0" 
+            fill="#FF8C00" opacity="0.7"/>
+      
+      <!-- Ember effects -->
+      <circle cx="80" cy="-30" r="3" fill="#FFD700" opacity="0.6"/>
+      <circle cx="150" cy="-50" r="2" fill="#FFD700" opacity="0.7"/>
+      <circle cx="220" cy="-40" r="3" fill="#FFD700" opacity="0.5"/>
+    </g>
+  </g>
+  
+  <!-- Trogdor -->
+  <g id="trogdor" transform="translate(400,150) scale(2.4)">
+    <!-- The S-shaped body -->
+    <path d="M100,100 
+             C150,80 200,120 220,180
+             C240,240 220,280 180,300
+             C140,320 100,300 80,260" 
+          stroke="#009900" 
+          stroke-width="20" 
+          fill="none"
+          stroke-linecap="round"/>
+    
+    <!-- Dragon head -->
+    <circle cx="80" cy="100" r="15" fill="#009900"/>
+    
+    <!-- The BEEFY arm - slimmer and more defined -->
+    <path d="M155,105
+             Q175,95 195,90
+             Q215,92 230,100
+             Q245,108 248,120
+             Q250,132 245,138
+             Q235,145 220,142
+             Q205,139 190,132
+             Q175,125 155,115
+             Z" 
+          fill="#FFA07A"
+          stroke="#CD853F"
+          stroke-width="3"
+          transform="rotate(-5 160 110)"/>
+    
+    <!-- Spindly legs with feet -->
+    <line x1="210" y1="280" x2="230" y2="320" 
+          stroke="#009900" stroke-width="10" stroke-linecap="round"/>
+    <path d="M230,320 L245,315 L250,325 L235,330 Z" 
+          fill="#009900" stroke="#009900" stroke-width="2"/>
+          
+    <line x1="160" y1="310" x2="140" y2="350" 
+          stroke="#009900" stroke-width="10" stroke-linecap="round"/>
+    <path d="M140,350 L155,345 L160,355 L145,360 Z" 
+          fill="#009900" stroke="#009900" stroke-width="2"/>
+    
+    <!-- Fire breath from head -->
+    <path d="M65,100 
+             C15,90 -35,90 -85,100 
+             C-35,110 15,110 65,100" 
+          fill="url(#fireGradient)"
+          transform="translate(-50,-15) scale(1.5) rotate(-15)"/>
+    
+    <!-- Angry eye -->
+    <circle cx="75" cy="95" r="3" fill="white"/>
+    <circle cx="74" cy="94" r="1" fill="black"/>
+    
+    <!-- Consummate V's - repositioned clockwise -->
+    <g id="vees">
+      <path d="M115,95 L110,105 L105,95" stroke="#004400" stroke-width="3" fill="none"/>
+      <path d="M160,100 L155,110 L150,100" stroke="#004400" stroke-width="3" fill="none"/>
+      <path d="M210,150 L205,160 L200,150" stroke="#004400" stroke-width="3" fill="none"/>
+      <path d="M225,180 L220,190 L215,180" stroke="#004400" stroke-width="3" fill="none"/>
+      <path d="M235,240 L230,250 L225,240" stroke="#004400" stroke-width="3" fill="none"/>
+      <path d="M180,300 L175,310 L170,300" stroke="#004400" stroke-width="3" fill="none"/>
+    </g>
+  </g>
+</svg>
