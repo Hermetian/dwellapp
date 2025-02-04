@@ -1,89 +1,90 @@
-import Foundation
 import FirebaseFirestore
 import FirebaseFirestoreSwift
 
-struct User: Identifiable, Codable {
-    @DocumentID var id: String?
-    let email: String
-    let name: String
-    var profileImageUrl: String?
-    var favoriteListings: [String]
-    var myListings: [String]
-    let createdAt: Date
-    var lastActive: Date
-    var preferences: [String: Bool]?
-    @ServerTimestamp var serverTimestamp: Timestamp?
+public struct User: Identifiable, Codable {
+    @DocumentID public var id: String?
+    public let email: String
+    public let name: String
+    public var profileImageUrl: String?
+    public var favoriteListings: [String]
+    public var bio: String?
+    public var phoneNumber: String?
+    public var createdAt: Date
+    public var updatedAt: Date
+    @ServerTimestamp public var serverTimestamp: Timestamp?
     
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case id
         case email
         case name
         case profileImageUrl
         case favoriteListings
-        case myListings
+        case bio
+        case phoneNumber
         case createdAt
-        case lastActive
-        case preferences
+        case updatedAt
         case serverTimestamp
     }
     
-    init(id: String? = nil,
-         email: String,
-         name: String,
-         profileImageUrl: String? = nil,
-         favoriteListings: [String] = [],
-         myListings: [String] = [],
-         createdAt: Date = Date(),
-         lastActive: Date = Date(),
-         preferences: [String: Bool]? = nil,
-         serverTimestamp: Timestamp? = nil) {
+    public init(
+        id: String? = nil,
+        email: String,
+        name: String,
+        profileImageUrl: String? = nil,
+        favoriteListings: [String] = [],
+        bio: String? = nil,
+        phoneNumber: String? = nil,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        serverTimestamp: Timestamp? = nil
+    ) {
         self.id = id
         self.email = email
         self.name = name
         self.profileImageUrl = profileImageUrl
         self.favoriteListings = favoriteListings
-        self.myListings = myListings
+        self.bio = bio
+        self.phoneNumber = phoneNumber
         self.createdAt = createdAt
-        self.lastActive = lastActive
-        self.preferences = preferences
+        self.updatedAt = updatedAt
         self.serverTimestamp = serverTimestamp
     }
     
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id)
         email = try container.decode(String.self, forKey: .email)
         name = try container.decode(String.self, forKey: .name)
         profileImageUrl = try container.decodeIfPresent(String.self, forKey: .profileImageUrl)
         favoriteListings = try container.decode([String].self, forKey: .favoriteListings)
-        myListings = try container.decode([String].self, forKey: .myListings)
+        bio = try container.decodeIfPresent(String.self, forKey: .bio)
+        phoneNumber = try container.decodeIfPresent(String.self, forKey: .phoneNumber)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
-        lastActive = try container.decode(Date.self, forKey: .lastActive)
-        preferences = try container.decodeIfPresent([String: Bool].self, forKey: .preferences)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         serverTimestamp = try container.decodeIfPresent(Timestamp.self, forKey: .serverTimestamp)
     }
     
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(id, forKey: .id)
         try container.encode(email, forKey: .email)
         try container.encode(name, forKey: .name)
         try container.encodeIfPresent(profileImageUrl, forKey: .profileImageUrl)
         try container.encode(favoriteListings, forKey: .favoriteListings)
-        try container.encode(myListings, forKey: .myListings)
+        try container.encodeIfPresent(bio, forKey: .bio)
+        try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
         try container.encode(createdAt, forKey: .createdAt)
-        try container.encode(lastActive, forKey: .lastActive)
-        try container.encodeIfPresent(preferences, forKey: .preferences)
+        try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(serverTimestamp, forKey: .serverTimestamp)
     }
     
     // MARK: - Helper Methods
     
-    func hasFavorited(_ listingId: String) -> Bool {
+    public func hasFavorited(_ listingId: String) -> Bool {
         return favoriteListings.contains(listingId)
     }
     
-    func addToFavorites(_ listingId: String) -> User {
+    public func addToFavorites(_ listingId: String) -> User {
         var updatedFavorites = favoriteListings
         if !updatedFavorites.contains(listingId) {
             updatedFavorites.append(listingId)
@@ -93,24 +94,24 @@ struct User: Identifiable, Codable {
                    name: name,
                    profileImageUrl: profileImageUrl,
                    favoriteListings: updatedFavorites,
-                   myListings: myListings,
+                   bio: bio,
+                   phoneNumber: phoneNumber,
                    createdAt: createdAt,
-                   lastActive: lastActive,
-                   preferences: preferences,
+                   updatedAt: updatedAt,
                    serverTimestamp: serverTimestamp)
     }
     
-    func removeFromFavorites(_ listingId: String) -> User {
+    public func removeFromFavorites(_ listingId: String) -> User {
         let updatedFavorites = favoriteListings.filter { $0 != listingId }
         return User(id: id,
                    email: email,
                    name: name,
                    profileImageUrl: profileImageUrl,
                    favoriteListings: updatedFavorites,
-                   myListings: myListings,
+                   bio: bio,
+                   phoneNumber: phoneNumber,
                    createdAt: createdAt,
-                   lastActive: lastActive,
-                   preferences: preferences,
+                   updatedAt: updatedAt,
                    serverTimestamp: serverTimestamp)
     }
 } 

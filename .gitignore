@@ -1,0 +1,56 @@
+# Firebase configuration
+Sources/Config/FirebaseConfig.swift
+GoogleService-Info.plist
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+
+# Build directories
+.build/ 
+/build/
+/dist/
+/out/
+/target/
+/bin/
+/Debug/
+/Release/
+
+# Dependencies
+/node_modules/
+/vendor/
+/.venv/
+/venv/
+/env/
+
+# IDE files
+.idea/
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+
+# Compiled files
+*.class
+*.o
+*.pyc
+__pycache__/
+*.dll
+*.exe
+*.jar
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db 

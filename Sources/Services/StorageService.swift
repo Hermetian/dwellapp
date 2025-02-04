@@ -1,13 +1,36 @@
-import Foundation
+#if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+import UIKit
+#endif
 import FirebaseStorage
 import AVFoundation
-import UIKit
 
 @MainActor
-class StorageService: ObservableObject {
+public class StorageService: ObservableObject {
     private let storage = Storage.storage()
     
-    func uploadVideo(videoURL: URL) async throws -> (videoUrl: String, thumbnailUrl: String?) {
+    public init() {}
+    
+    public func uploadData(_ data: Data, path: String) async throws -> URL {
+        let storageRef = storage.reference().child(path)
+        let _ = try await storageRef.putDataAsync(data)
+        return try await storageRef.downloadURL()
+    }
+    
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+    public func uploadImage(_ image: UIImage, path: String) async throws -> URL {
+        guard let data = image.jpegData(compressionQuality: 0.7) else {
+            throw NSError(domain: "StorageService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to data"])
+        }
+        return try await uploadData(data, path: path)
+    }
+    
+    public func uploadProfileImage(_ image: UIImage) async throws -> String {
+        let fileName = UUID().uuidString + ".jpg"
+        let url = try await uploadImage(image, path: "profile_images/\(fileName)")
+        return url.absoluteString
+    }
+    
+    public func uploadVideo(videoURL: URL) async throws -> (videoUrl: String, thumbnailUrl: String?) {
         let videoData = try Data(contentsOf: videoURL)
         let videoFileName = UUID().uuidString + ".mp4"
         let videoRef = storage.reference().child("videos/\(videoFileName)")
@@ -44,36 +67,23 @@ class StorageService: ObservableObject {
         
         return thumbnailURL.absoluteString
     }
+    #endif
     
-    func uploadProfileImage(_ image: UIImage) async throws -> String {
-        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
-            throw NSError(domain: "StorageService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to data"])
-        }
-        
-        let fileName = UUID().uuidString + ".jpg"
-        let imageRef = storage.reference().child("profile_images/\(fileName)")
-        
-        _ = try await imageRef.putDataAsync(imageData, metadata: nil)
-        let downloadURL = try await imageRef.downloadURL()
-        
-        return downloadURL.absoluteString
-    }
-    
-    func deleteFile(at url: String) async throws {
+    public func deleteFile(at url: String) async throws {
         let ref = storage.reference(forURL: url)
         try await ref.delete()
     }
     
-    func getFileMetadata(at url: String) async throws -> [String: Any] {
+    public func getFileMetadata(at url: String) async throws -> [String: Any] {
         let ref = storage.reference(forURL: url)
         let metadata = try await ref.getMetadata()
         
         return [
             "size": metadata.size,
-            "contentType": metadata.contentType ?? "",
+            "contentType": metadata.contentType as Any,
             "createdAt": metadata.timeCreated ?? Date(),
             "updatedAt": metadata.updated ?? Date(),
-            "name": metadata.name
+            "name": metadata.name as Any
         ]
     }
 } 

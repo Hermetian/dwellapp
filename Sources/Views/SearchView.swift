@@ -1,108 +1,151 @@
 import SwiftUI
+import Models
+import ViewModels
 
 struct SearchView: View {
-    @StateObject private var propertyViewModel = PropertyViewModel()
+    @EnvironmentObject private var appViewModel: AppViewModel
     @State private var searchText = ""
     @State private var showFilters = false
-    @State private var priceRange: ClosedRange<Double> = 0...10000
-    @State private var selectedBedrooms: Int = 0
-    @State private var selectedBathrooms: Int = 0
+    @State private var selectedPropertyType = "Any"
+    @State private var priceRange = 0.0...5000000.0
+    @State private var selectedBedrooms = "Any"
+    @State private var selectedBathrooms = "Any"
     @State private var selectedAmenities: Set<String> = []
     
+    let propertyTypes = ["Any", "House", "Apartment", "Condo", "Townhouse"]
+    let bedroomOptions = ["Any", "1", "2", "3", "4+"]
+    let bathroomOptions = ["Any", "1", "1.5", "2", "2.5", "3+"]
+    let amenitiesList = ["Parking", "Pool", "Gym", "Elevator", "Security", "Furnished", "Pets Allowed", "Laundry"]
+    
     var filteredProperties: [Property] {
-        propertyViewModel.properties.filter { property in
-            let matchesSearch = searchText.isEmpty || 
-                property.title.localizedCaseInsensitiveContains(searchText) ||
-                property.description.localizedCaseInsensitiveContains(searchText) ||
-                property.address.localizedCaseInsensitiveContains(searchText)
+        appViewModel.propertyViewModel.properties.filter { property in
+            // Property Type Filter
+            let typeMatches = selectedPropertyType == "Any" || property.type == selectedPropertyType
             
-            let matchesPrice = property.price >= priceRange.lowerBound && 
-                             property.price <= priceRange.upperBound
+            // Price Filter
+            let priceInRange = priceRange.contains(property.price)
             
-            let matchesBedrooms = selectedBedrooms == 0 || 
-                                property.bedrooms == selectedBedrooms
+            // Bedrooms Filter
+            let bedroomsMatch: Bool
+            if selectedBedrooms == "Any" {
+                bedroomsMatch = true
+            } else if selectedBedrooms.hasSuffix("+") {
+                let minBedrooms = Int(selectedBedrooms.dropLast()) ?? 0
+                bedroomsMatch = property.bedrooms >= minBedrooms
+            } else {
+                bedroomsMatch = property.bedrooms == Int(selectedBedrooms) ?? 0
+            }
             
-            let matchesBathrooms = selectedBathrooms == 0 || 
-                                 property.bathrooms == selectedBathrooms
+            // Bathrooms Filter
+            let bathroomsMatch: Bool
+            if selectedBathrooms == "Any" {
+                bathroomsMatch = true
+            } else if selectedBathrooms.hasSuffix("+") {
+                let minBathrooms = Double(selectedBathrooms.dropLast()) ?? 0
+                bathroomsMatch = property.bathrooms >= minBathrooms
+            } else {
+                bathroomsMatch = property.bathrooms == Double(selectedBathrooms) ?? 0
+            }
             
-            let matchesAmenities = selectedAmenities.isEmpty || 
-                                 (property.amenities?.keys.contains { selectedAmenities.contains($0) } ?? false)
+            // Amenities Filter (ANY match)
+            let amenitiesMatch = selectedAmenities.isEmpty || 
+                selectedAmenities.contains { amenity in
+                    property.amenities?[amenity] == true
+                }
             
-            return matchesSearch && matchesPrice && matchesBedrooms && 
-                   matchesBathrooms && matchesAmenities
+            return typeMatches && priceInRange && bedroomsMatch && bathroomsMatch && amenitiesMatch
         }
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Search Bar
-            SearchBar(text: $searchText)
-                .padding()
-            
-            // Filter Button
-            Button(action: { showFilters.toggle() }) {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Search Bar
                 HStack {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                    Text("Filters")
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(8)
-            }
-            .padding(.bottom)
-            
-            if propertyViewModel.isLoading {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle())
-                    .padding()
-            } else if filteredProperties.isEmpty {
-                EmptySearchView()
-            } else {
-                // Results List
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(filteredProperties) { property in
-                            NavigationLink(destination: PropertyDetailView(property: property, userId: propertyViewModel.currentUserId ?? "")) {
-                                PropertyListItem(property: property)
-                            }
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.gray)
+                    
+                    TextField("Search properties...", text: $searchText)
+                        .textFieldStyle(PlainTextFieldStyle())
+                    
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.gray)
                         }
                     }
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+                .padding()
+                
+                // Filter Button
+                Button {
+                    showFilters = true
+                } label: {
+                    HStack {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                        Text("Filters")
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
+                .padding(.bottom)
+                
+                if appViewModel.propertyViewModel.isLoading {
+                    ProgressView()
+                        .padding()
+                } else if filteredProperties.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gray)
+                        
+                        Text("No properties found")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        Text("Try adjusting your filters")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                     .padding()
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 16) {
+                            ForEach(filteredProperties) { property in
+                                PropertyCard(property: property)
+                                    .padding(.horizontal)
+                            }
+                        }
+                        .padding(.vertical)
+                    }
                 }
             }
-        }
-        .navigationTitle("Search")
-        .sheet(isPresented: $showFilters) {
-            FilterView(
-                priceRange: $priceRange,
-                selectedBedrooms: $selectedBedrooms,
-                selectedBathrooms: $selectedBathrooms,
-                selectedAmenities: $selectedAmenities
-            )
+            .navigationTitle("Search")
+            .sheet(isPresented: $showFilters) {
+                FilterView(
+                    propertyTypes: propertyTypes,
+                    selectedPropertyType: $selectedPropertyType,
+                    priceRange: $priceRange,
+                    bedroomOptions: bedroomOptions,
+                    selectedBedrooms: $selectedBedrooms,
+                    bathroomOptions: bathroomOptions,
+                    selectedBathrooms: $selectedBathrooms,
+                    amenitiesList: amenitiesList,
+                    selectedAmenities: $selectedAmenities
+                )
+            }
         }
         .onAppear {
-            propertyViewModel.loadProperties()
-        }
-    }
-}
-
-struct SearchBar: View {
-    @Binding var text: String
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.gray)
-            
-            TextField("Search properties...", text: $text)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            
-            if !text.isEmpty {
-                Button(action: { text = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
-                }
+            Task {
+                await appViewModel.propertyViewModel.loadProperties()
             }
         }
     }
@@ -110,25 +153,37 @@ struct SearchBar: View {
 
 struct FilterView: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var priceRange: ClosedRange<Double>
-    @Binding var selectedBedrooms: Int
-    @Binding var selectedBathrooms: Int
-    @Binding var selectedAmenities: Set<String>
     
-    let amenitiesList = ["Parking", "Pool", "Gym", "Elevator", "Security"]
+    let propertyTypes: [String]
+    @Binding var selectedPropertyType: String
+    @Binding var priceRange: ClosedRange<Double>
+    let bedroomOptions: [String]
+    @Binding var selectedBedrooms: String
+    let bathroomOptions: [String]
+    @Binding var selectedBathrooms: String
+    let amenitiesList: [String]
+    @Binding var selectedAmenities: Set<String>
     
     var body: some View {
         NavigationView {
             Form {
+                Section(header: Text("Property Type")) {
+                    Picker("Type", selection: $selectedPropertyType) {
+                        ForEach(propertyTypes, id: \.self) { type in
+                            Text(type).tag(type)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                
                 Section(header: Text("Price Range")) {
-                    RangeSlider(value: $priceRange, in: 0...10000)
+                    PriceRangeSlider(range: $priceRange)
                 }
                 
                 Section(header: Text("Bedrooms")) {
                     Picker("Bedrooms", selection: $selectedBedrooms) {
-                        Text("Any").tag(0)
-                        ForEach(1...5, id: \.self) { num in
-                            Text("\(num)").tag(num)
+                        ForEach(bedroomOptions, id: \.self) { option in
+                            Text(option).tag(option)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -136,9 +191,8 @@ struct FilterView: View {
                 
                 Section(header: Text("Bathrooms")) {
                     Picker("Bathrooms", selection: $selectedBathrooms) {
-                        Text("Any").tag(0)
-                        ForEach(1...4, id: \.self) { num in
-                            Text("\(num)").tag(num)
+                        ForEach(bathroomOptions, id: \.self) { option in
+                            Text(option).tag(option)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -158,16 +212,24 @@ struct FilterView: View {
                         ))
                     }
                 }
+                
+                Section {
+                    Button("Reset Filters") {
+                        selectedPropertyType = "Any"
+                        priceRange = 0...5000000
+                        selectedBedrooms = "Any"
+                        selectedBathrooms = "Any"
+                        selectedAmenities.removeAll()
+                    }
+                    .foregroundColor(.red)
+                }
             }
             .navigationTitle("Filters")
             .navigationBarItems(
-                leading: Button("Reset") {
-                    priceRange = 0...10000
-                    selectedBedrooms = 0
-                    selectedBathrooms = 0
-                    selectedAmenities.removeAll()
+                leading: Button("Cancel") {
+                    dismiss()
                 },
-                trailing: Button("Done") {
+                trailing: Button("Apply") {
                     dismiss()
                 }
             )
@@ -175,69 +237,25 @@ struct FilterView: View {
     }
 }
 
-struct EmptySearchView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 64))
-                .foregroundColor(.gray)
-            
-            Text("No properties found")
-                .font(.title2)
-                .fontWeight(.semibold)
-            
-            Text("Try adjusting your search or filters")
-                .foregroundColor(.gray)
-        }
-        .padding()
-    }
-}
-
-struct PropertyListItem: View {
-    let property: Property
+struct PriceRangeSlider: View {
+    @Binding var range: ClosedRange<Double>
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Property Image/Video Preview
-            AsyncImage(url: URL(string: property.thumbnailUrl ?? "")) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Color.gray.opacity(0.3)
+        VStack {
+            HStack {
+                Text("$\(Int(range.lowerBound))")
+                Spacer()
+                Text("$\(Int(range.upperBound))")
             }
-            .frame(height: 200)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .font(.caption)
             
-            // Property Details
-            VStack(alignment: .leading, spacing: 8) {
-                Text(property.title)
-                    .font(.headline)
-                
-                Text("$\(Int(property.price))/month")
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
-                
-                HStack {
-                    Label("\(property.bedrooms) beds", systemImage: "bed.double.fill")
-                    Spacer()
-                    Label("\(property.bathrooms) baths", systemImage: "shower.fill")
-                    Spacer()
-                    Label("\(Int(property.squareFootage)) sq ft", systemImage: "square.fill")
-                }
-                .font(.caption)
-                .foregroundColor(.gray)
-            }
+            RangeSlider(value: $range, in: 0...5000000)
+                .padding(.vertical)
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 5)
     }
 }
 
 #Preview {
-    NavigationView {
-        SearchView()
-    }
+    SearchView()
+        .environmentObject(AppViewModel())
 } 

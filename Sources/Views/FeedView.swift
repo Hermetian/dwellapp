@@ -1,19 +1,20 @@
 import SwiftUI
-import AVKit
+import Models
+import ViewModels
 
 struct FeedView: View {
-    @StateObject private var propertyViewModel = PropertyViewModel()
+    @EnvironmentObject private var appViewModel: AppViewModel
     
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
-                ForEach(propertyViewModel.properties) { property in
+                ForEach(appViewModel.propertyViewModel.properties) { property in
                     PropertyCard(
                         property: property,
                         onLike: {
-                            if let userId = propertyViewModel.currentUserId {
+                            if let userId = appViewModel.authViewModel.currentUser?.id {
                                 Task {
-                                    await propertyViewModel.toggleFavorite(propertyId: property.id ?? "", userId: userId)
+                                    await appViewModel.propertyViewModel.toggleFavorite(propertyId: property.id ?? "", userId: userId)
                                 }
                             }
                         },
@@ -26,10 +27,12 @@ struct FeedView: View {
                     )
                 }
                 
-                if propertyViewModel.hasMoreProperties {
+                if appViewModel.propertyViewModel.hasMoreProperties {
                     ProgressView()
                         .onAppear {
-                            propertyViewModel.loadProperties()
+                            Task {
+                                await appViewModel.propertyViewModel.loadProperties()
+                            }
                         }
                 }
             }
@@ -37,10 +40,14 @@ struct FeedView: View {
         }
         .navigationTitle("DwellApp")
         .onAppear {
-            propertyViewModel.loadProperties()
+            Task {
+                await appViewModel.propertyViewModel.loadProperties()
+            }
         }
         .refreshable {
-            propertyViewModel.resetProperties()
+            Task {
+                await appViewModel.propertyViewModel.resetProperties()
+            }
         }
     }
 }
@@ -48,5 +55,6 @@ struct FeedView: View {
 #Preview {
     NavigationView {
         FeedView()
+            .environmentObject(AppViewModel())
     }
 } 

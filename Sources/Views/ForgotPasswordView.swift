@@ -1,79 +1,66 @@
 import SwiftUI
+import ViewModels
 
 struct ForgotPasswordView: View {
-    @StateObject private var authViewModel = AuthViewModel()
     @Environment(\.dismiss) private var dismiss
-    
+    @EnvironmentObject private var appViewModel: AppViewModel
     @State private var email = ""
-    @State private var showSuccessAlert = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header
-                    VStack(spacing: 8) {
-                        Image(systemName: "lock.rotation")
-                            .font(.system(size: 60))
-                            .foregroundColor(.blue)
-                        
-                        Text("Reset Password")
-                            .font(.title)
-                            .fontWeight(.bold)
-                        
-                        Text("Enter your email address and we'll send you instructions to reset your password")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    .padding(.top, 40)
-                    
-                    // Form
-                    VStack(spacing: 16) {
-                        TextField("Email", text: $email)
-                            .textFieldStyle(RoundedTextFieldStyle())
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                        
-                        Button {
-                            Task {
-                                await authViewModel.resetPassword(email: email)
-                                showSuccessAlert = true
-                            }
-                        } label: {
-                            if authViewModel.isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle())
-                            } else {
-                                Text("Send Reset Link")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                            }
+            VStack(spacing: 20) {
+                Text("Reset Password")
+                    .font(.title)
+                    .fontWeight(.bold)
+                
+                Text("Enter your email address and we'll send you a link to reset your password.")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                
+                TextField("Email", text: $email)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                    .padding(.horizontal)
+                
+                Button {
+                    Task {
+                        do {
+                            try await appViewModel.authViewModel.resetPassword(email: email)
+                            alertMessage = "Password reset email sent. Please check your inbox."
+                            showAlert = true
+                        } catch {
+                            alertMessage = error.localizedDescription
+                            showAlert = true
                         }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .disabled(email.isEmpty || authViewModel.isLoading)
                     }
-                    .padding(.horizontal, 24)
+                } label: {
+                    Text("Send Reset Link")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
                 }
+                .padding(.horizontal)
+                .disabled(email.isEmpty)
+                
+                Spacer()
             }
+            .padding(.top, 50)
             .navigationBarItems(leading: Button("Cancel") {
                 dismiss()
             })
-            .alert("Error", isPresented: .constant(authViewModel.error != nil)) {
-                Button("OK") {
-                    authViewModel.error = nil
-                }
-            } message: {
-                Text(authViewModel.error?.localizedDescription ?? "")
-            }
-            .alert("Success", isPresented: $showSuccessAlert) {
-                Button("OK") {
+        }
+        .alert(alertMessage, isPresented: $showAlert) {
+            Button("OK") {
+                if !alertMessage.contains("error") {
                     dismiss()
                 }
-            } message: {
-                Text("Password reset instructions have been sent to your email.")
             }
         }
     }
@@ -81,4 +68,5 @@ struct ForgotPasswordView: View {
 
 #Preview {
     ForgotPasswordView()
+        .environmentObject(AppViewModel())
 } 

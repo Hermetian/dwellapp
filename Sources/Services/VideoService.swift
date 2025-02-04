@@ -1,23 +1,48 @@
-import Foundation
 import AVFoundation
+#if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 @MainActor
-class VideoService: ObservableObject {
-    func getVideoDuration(url: URL) async throws -> TimeInterval {
+public class VideoService: ObservableObject {
+    public init() {}
+    
+    public func getVideoDuration(url: URL) async throws -> TimeInterval {
         let asset = AVAsset(url: url)
         let duration = try await asset.load(.duration)
         return duration.seconds
     }
     
-    func getVideoDimensions(url: URL) async throws -> CGSize {
+    public func getVideoDimensions(url: URL) async throws -> CGSize {
         let asset = AVAsset(url: url)
         let track = try await asset.loadTracks(withMediaType: .video).first
         let size = try await track?.load(.naturalSize) ?? .zero
         return size
     }
     
-    func trimVideo(url: URL, startTime: CMTime, endTime: CMTime) async throws -> URL {
+    private func exportComposition(_ composition: AVComposition, timeRange: CMTimeRange, to outputURL: URL) async throws {
+        guard let export = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
+        }
+        
+        export.outputURL = outputURL
+        export.outputFileType = .mp4
+        export.timeRange = timeRange
+        
+        await withCheckedContinuation { continuation in
+            export.exportAsynchronously {
+                continuation.resume()
+            }
+        }
+        
+        guard export.status == .completed else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to export video: \(String(describing: export.error))"])
+        }
+    }
+    
+    public func trimVideo(url: URL, startTime: CMTime, endTime: CMTime) async throws -> URL {
         let asset = AVAsset(url: url)
         let composition = AVMutableComposition()
         
@@ -32,24 +57,13 @@ class VideoService: ObservableObject {
         try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: .zero)
         try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: .zero)
         
-        // Export
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
-        
-        let export = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)
-        export?.outputURL = tempURL
-        export?.outputFileType = .mp4
-        export?.timeRange = timeRange
-        
-        await export?.export()
-        
-        guard export?.status == .completed else {
-            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to export video"])
-        }
-        
+        try await exportComposition(composition, timeRange: timeRange, to: tempURL)
         return tempURL
     }
     
-    func generateThumbnail(from url: URL, at time: CMTime = .zero) async throws -> UIImage {
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+    public func generateThumbnail(from url: URL, at time: CMTime = .zero) async throws -> UIImage {
         let asset = AVAsset(url: url)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
@@ -58,28 +72,36 @@ class VideoService: ObservableObject {
         return UIImage(cgImage: cgImage)
     }
     
-    func compressVideo(url: URL, quality: String = AVAssetExportPresetMediumQuality) async throws -> URL {
+    public func extractFrame(from url: URL, at time: CMTime) async throws -> UIImage {
+        return try await generateThumbnail(from: url, at: time)
+    }
+    #endif
+    
+    public func compressVideo(url: URL, quality: String = AVAssetExportPresetMediumQuality) async throws -> URL {
         let asset = AVAsset(url: url)
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
         
-        let export = AVAssetExportSession(asset: asset, presetName: quality)
-        export?.outputURL = tempURL
-        export?.outputFileType = .mp4
+        guard let export = AVAssetExportSession(asset: asset, presetName: quality) else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
+        }
         
-        await export?.export()
+        export.outputURL = tempURL
+        export.outputFileType = .mp4
         
-        guard export?.status == .completed else {
-            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to compress video"])
+        await withCheckedContinuation { continuation in
+            export.exportAsynchronously {
+                continuation.resume()
+            }
+        }
+        
+        guard export.status == .completed else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to compress video: \(String(describing: export.error))"])
         }
         
         return tempURL
     }
     
-    func extractFrame(from url: URL, at time: CMTime) async throws -> UIImage {
-        return try await generateThumbnail(from: url, at: time)
-    }
-    
-    func getVideoMetadata(url: URL) async throws -> [String: Any] {
+    public func getVideoMetadata(url: URL) async throws -> [String: Any] {
         let asset = AVAsset(url: url)
         let duration = try await asset.load(.duration)
         let tracks = try await asset.loadTracks(withMediaType: .video)
@@ -94,11 +116,11 @@ class VideoService: ObservableObject {
             "duration": duration.seconds,
             "width": size.width,
             "height": size.height,
-            "fileSize": try await url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            "fileSize": try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         ]
     }
     
-    func cleanupTempFiles() {
+    public func cleanupTempFiles() {
         let tempDirectory = FileManager.default.temporaryDirectory
         try? FileManager.default.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "mp4" || $0.pathExtension == "jpg" }

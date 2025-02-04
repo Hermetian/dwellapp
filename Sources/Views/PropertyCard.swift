@@ -1,5 +1,5 @@
 import SwiftUI
-import AVKit
+import Models
 
 struct PropertyCard: View {
     let property: Property

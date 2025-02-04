@@ -1,65 +1,48 @@
-import Foundation
 import FirebaseFirestore
 import FirebaseFirestoreSwift
 
-struct Message: Identifiable, Codable {
-    @DocumentID var id: String?
-    let conversationId: String
-    let senderId: String
-    let content: String
-    let timestamp: Date
-    var isRead: Bool
-    var attachmentUrl: String?
-    var attachmentType: String?
+public struct Message: Identifiable, Codable {
+    @DocumentID public var id: String?
+    public let conversationId: String
+    public let senderId: String
+    public let content: String
+    public let timestamp: Date
+    @ServerTimestamp public var serverTimestamp: Timestamp?
+    public var isRead: Bool
+    public var attachmentUrl: String?
+    public var attachmentType: String?
     
-    enum CodingKeys: String, CodingKey {
+    public init(
+        id: String? = nil,
+        conversationId: String,
+        senderId: String,
+        content: String,
+        timestamp: Date = Date(),
+        serverTimestamp: Timestamp? = nil,
+        isRead: Bool = false,
+        attachmentUrl: String? = nil,
+        attachmentType: String? = nil
+    ) {
+        self.id = id
+        self.conversationId = conversationId
+        self.senderId = senderId
+        self.content = content
+        self.timestamp = timestamp
+        self.serverTimestamp = serverTimestamp
+        self.isRead = isRead
+        self.attachmentUrl = attachmentUrl
+        self.attachmentType = attachmentType
+    }
+    
+    private enum CodingKeys: String, CodingKey {
         case id
         case conversationId
         case senderId
         case content
         case timestamp
+        case serverTimestamp
         case isRead
         case attachmentUrl
         case attachmentType
-    }
-}
-
-struct Conversation: Identifiable, Codable {
-    @DocumentID var id: String?
-    let propertyId: String
-    let tenantId: String
-    let managerId: String
-    let createdAt: Date
-    var lastMessageAt: Date
-    var lastMessageContent: String
-    var hasUnreadMessages: Bool
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case propertyId
-        case tenantId
-        case managerId
-        case createdAt
-        case lastMessageAt
-        case lastMessageContent
-        case hasUnreadMessages
-    }
-    
-    init(id: String? = nil,
-         propertyId: String,
-         tenantId: String,
-         managerId: String,
-         createdAt: Date = Date(),
-         lastMessageAt: Date = Date(),
-         lastMessageContent: String = "",
-         hasUnreadMessages: Bool = false) {
-        self.id = id
-        self.propertyId = propertyId
-        self.tenantId = tenantId
-        self.managerId = managerId
-        self.createdAt = createdAt
-        self.lastMessageAt = lastMessageAt
-        self.lastMessageContent = lastMessageContent
-        self.hasUnreadMessages = hasUnreadMessages
     }
 } 

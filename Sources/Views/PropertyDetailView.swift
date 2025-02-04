@@ -1,16 +1,19 @@
 import SwiftUI
+import Models
 import AVKit
+import ViewModels
 
 struct PropertyDetailView: View {
     let property: Property
+    let userId: String
+    @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var videoPlayerViewModel = VideoPlayerViewModel()
-    @StateObject private var propertyViewModel: PropertyViewModel
     @StateObject private var messagingViewModel = MessagingViewModel()
     @Environment(\.dismiss) private var dismiss
     
     init(property: Property, userId: String) {
         self.property = property
-        _propertyViewModel = StateObject(wrappedValue: PropertyViewModel())
+        self.userId = userId
     }
     
     var body: some View {
@@ -105,34 +108,30 @@ struct PropertyDetailView: View {
                     HStack(spacing: 16) {
                         Button {
                             Task {
-                                if let userId = propertyViewModel.currentUserId {
-                                    await propertyViewModel.toggleFavorite(
-                                        propertyId: property.id ?? "",
-                                        userId: userId
-                                    )
-                                }
+                                await appViewModel.propertyViewModel.toggleFavorite(
+                                    propertyId: property.id ?? "",
+                                    userId: userId
+                                )
                             }
                         } label: {
                             Label(
-                                propertyViewModel.favoriteProperties.contains { $0.id == property.id } ? "Favorited" : "Add to Favorites",
-                                systemImage: propertyViewModel.favoriteProperties.contains { $0.id == property.id } ? "heart.fill" : "heart"
+                                appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id } ? "Favorited" : "Add to Favorites",
+                                systemImage: appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id } ? "heart.fill" : "heart"
                             )
                         }
                         .buttonStyle(.bordered)
                         
                         Button {
                             Task {
-                                if let userId = propertyViewModel.currentUserId {
-                                    let conversationId = await messagingViewModel.createOrGetConversation(
-                                        propertyId: property.id ?? "",
-                                        tenantId: userId,
-                                        managerId: property.managerId
-                                    )
-                                    
-                                    if let conversationId = conversationId {
-                                        // Navigate to chat
-                                        // TODO: Implement navigation to chat
-                                    }
+                                let conversationId = await messagingViewModel.createOrGetConversation(
+                                    propertyId: property.id ?? "",
+                                    tenantId: userId,
+                                    managerId: property.managerId
+                                )
+                                
+                                if let conversationId = conversationId {
+                                    // Navigate to chat
+                                    // TODO: Implement navigation to chat
                                 }
                             }
                         } label: {
@@ -145,16 +144,16 @@ struct PropertyDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Error", isPresented: .constant(propertyViewModel.error != nil)) {
+        .alert("Error", isPresented: .constant(appViewModel.propertyViewModel.error != nil)) {
             Button("OK") {
-                propertyViewModel.error = nil
+                appViewModel.propertyViewModel.error = nil
             }
         } message: {
-            Text(propertyViewModel.error?.localizedDescription ?? "")
+            Text(appViewModel.propertyViewModel.error?.localizedDescription ?? "")
         }
         .onAppear {
             Task {
-                await propertyViewModel.incrementViewCount(for: property.id ?? "")
+                await appViewModel.propertyViewModel.incrementViewCount(for: property.id ?? "")
             }
         }
     }

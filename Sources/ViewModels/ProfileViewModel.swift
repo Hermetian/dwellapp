@@ -1,20 +1,27 @@
-import Foundation
-import UIKit
+import SwiftUI
+import Models
 import Combine
+import Services
+
+#if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 @MainActor
-class ProfileViewModel: ObservableObject {
-    @Published var user: User?
-    @Published var myProperties: [Property] = []
-    @Published var isLoading = false
-    @Published var error: Error?
+public class ProfileViewModel: ObservableObject {
+    @Published public var user: User?
+    @Published public var myProperties: [Property] = []
+    @Published public var isLoading = false
+    @Published public var error: Error?
     
     private var authService: AuthService!
     private var databaseService: DatabaseService!
     private var storageService: StorageService!
     private var cancellables = Set<AnyCancellable>()
     
-    nonisolated init(authService: AuthService? = nil,
+    public nonisolated init(authService: AuthService? = nil,
                     databaseService: DatabaseService? = nil,
                     storageService: StorageService? = nil) {
         if let authService = authService {
@@ -28,15 +35,15 @@ class ProfileViewModel: ObservableObject {
         }
         Task { @MainActor in
             if self.authService == nil {
-                self.authService = await AuthService()
+                self.authService = AuthService()
             }
             if self.databaseService == nil {
-                self.databaseService = await DatabaseService()
+                self.databaseService = DatabaseService()
             }
             if self.storageService == nil {
-                self.storageService = await StorageService()
+                self.storageService = StorageService()
             }
-            await self.setup()
+            self.setup()
         }
     }
     
@@ -53,7 +60,7 @@ class ProfileViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func loadMyProperties(userId: String) {
+    public func loadMyProperties(userId: String) {
         guard !isLoading else { return }
         isLoading = true
         error = nil
@@ -71,8 +78,11 @@ class ProfileViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func updateProfile(name: String? = nil, profileImage: UIImage? = nil) async {
-        guard !isLoading, let userId = user?.id else { return }
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+    public func updateProfile(name: String? = nil, profileImage: UIImage? = nil) async throws {
+        guard !isLoading else { throw NSError(domain: "ProfileViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
+        guard let userId = user?.id else { throw NSError(domain: "ProfileViewModel", code: -2, userInfo: [NSLocalizedDescriptionKey: "User ID not found"]) }
+        
         isLoading = true
         error = nil
         
@@ -83,21 +93,23 @@ class ProfileViewModel: ObservableObject {
                 updateData["name"] = name
             }
             
-            if let image = profileImage {
-                let imageUrl = try await storageService.uploadProfileImage(image)
+            if let profileImage = profileImage {
+                let imageUrl = try await storageService.uploadProfileImage(profileImage)
                 updateData["profileImageUrl"] = imageUrl
             }
             
             try await databaseService.updateProperty(id: userId, data: updateData)
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
+    #endif
     
-    func updatePassword(newPassword: String) async {
-        guard !isLoading else { return }
+    public func updatePassword(newPassword: String) async throws {
+        guard !isLoading else { throw NSError(domain: "ProfileViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
         
@@ -105,27 +117,23 @@ class ProfileViewModel: ObservableObject {
             try await authService.updatePassword(newPassword: newPassword)
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func deleteAccount() async {
-        guard !isLoading else { return }
+    public func deleteAccount() async throws {
+        guard !isLoading else { throw NSError(domain: "ProfileViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
         
         do {
-            // Delete profile image if exists
-            if let imageUrl = user?.profileImageUrl {
-                try await storageService.deleteFile(at: imageUrl)
-            }
-            
-            // Delete all user's properties
+            // Delete user's properties
             for property in myProperties {
-                try await storageService.deleteFile(at: property.videoUrl)
-                if let thumbnailUrl = property.thumbnailUrl {
-                    try await storageService.deleteFile(at: thumbnailUrl)
+                // Delete property images from storage
+                if let imageUrl = property.imageUrl {
+                    try? await storageService.deleteFile(at: imageUrl)
                 }
                 if let id = property.id {
                     try await databaseService.deleteProperty(id: id)
@@ -136,16 +144,24 @@ class ProfileViewModel: ObservableObject {
             try await authService.deleteAccount()
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func signOut() {
+    public func signOut() async throws {
+        guard !isLoading else { throw NSError(domain: "ProfileViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
+        isLoading = true
+        error = nil
+        
         do {
-            try authService.signOut()
+            try await authService.signOut()
         } catch {
             self.error = error
+            throw error
         }
+        
+        isLoading = false
     }
 } 

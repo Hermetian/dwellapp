@@ -1,10 +1,10 @@
 import SwiftUI
 import PhotosUI
-import AVKit
+import Models
+import ViewModels
 
 struct UploadPropertyView: View {
-    @StateObject private var propertyViewModel = PropertyViewModel()
-    @StateObject private var authViewModel = AuthViewModel()
+    @EnvironmentObject private var appViewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
     
     @State private var title = ""
@@ -119,7 +119,7 @@ struct UploadPropertyView: View {
     }
     
     private func uploadProperty() {
-        guard let userId = authViewModel.currentUser?.id,
+        guard let userId = appViewModel.authViewModel.currentUser?.id,
               let videoURL = selectedVideoURL else { return }
         
         // Convert amenities Set to Dictionary
@@ -129,7 +129,7 @@ struct UploadPropertyView: View {
         
         Task {
             do {
-                await propertyViewModel.uploadProperty(
+                await appViewModel.propertyViewModel.uploadProperty(
                     title: title,
                     description: description,
                     price: Double(price) ?? 0,
@@ -154,5 +154,6 @@ struct UploadPropertyView: View {
 #Preview {
     NavigationView {
         UploadPropertyView()
+            .environmentObject(AppViewModel())
     }
 }

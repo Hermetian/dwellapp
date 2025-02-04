@@ -1,17 +1,36 @@
-import Foundation
+import Models
 import FirebaseFirestore
 import FirebaseFirestoreSwift
 import Combine
 
 @MainActor
-class DatabaseService: ObservableObject {
+public class DatabaseService: ObservableObject {
     private let db = Firestore.firestore()
+    private var listeners: [String: ListenerRegistration] = [:]
+    
+    public init() {}
+    
+    deinit {
+        // Synchronously remove listeners in deinit to avoid capture issues
+        listeners.values.forEach { $0.remove() }
+        listeners.removeAll()
+    }
+    
+    private func store(listener: ListenerRegistration, for key: String) {
+        listeners[key]?.remove()
+        listeners[key] = listener
+    }
+    
+    // Helper method for type-safe dictionary updates
+    private func updateData<T: Sendable>(_ data: [String: T], at ref: DocumentReference) async throws {
+        try await ref.updateData(data as [String: Any])
+    }
     
     // MARK: - Properties Collection
     
-    func createProperty(_ property: Property) async throws -> String {
+    public func createProperty(_ property: Property) async throws -> String {
         let docRef = db.collection("properties").document()
-        try await docRef.setData(from: property)
+        try docRef.setData(from: property)
         return docRef.documentID
     }
     
@@ -26,7 +45,7 @@ class DatabaseService: ObservableObject {
         return property
     }
     
-    func getPropertiesStream(limit: Int = 10, lastPropertyId: String? = nil) -> AnyPublisher<[Property], Error> {
+    public func getPropertiesStream(limit: Int = 10, lastPropertyId: String? = nil) -> AnyPublisher<[Property], Error> {
         var query = db.collection("properties")
             .order(by: "createdAt", descending: true)
         
@@ -36,8 +55,9 @@ class DatabaseService: ObservableObject {
         
         if let lastId = lastPropertyId {
             let docRef = db.collection("properties").document(lastId)
-            // We'll get the document first, then use it as a cursor
-            return Future { promise in
+            return Future { [weak self] promise in
+                guard let self = self else { return }
+                
                 docRef.getDocument { snapshot, error in
                     if let error = error {
                         promise(.failure(error))
@@ -65,12 +85,15 @@ class DatabaseService: ObservableObject {
                             promise(.failure(error))
                         }
                     }
+                    self.store(listener: listener, for: "properties-\(lastId)")
                 }
             }
             .eraseToAnyPublisher()
         }
         
-        return Future { promise in
+        return Future { [weak self] promise in
+            guard let self = self else { return }
+            
             let listener = query.addSnapshotListener { querySnapshot, error in
                 if let error = error {
                     promise(.failure(error))
@@ -87,27 +110,28 @@ class DatabaseService: ObservableObject {
                     promise(.failure(error))
                 }
             }
+            self.store(listener: listener, for: "properties-all")
         }
         .eraseToAnyPublisher()
     }
     
-    func updateProperty(id: String, data: [String: Any]) async throws {
+    public func updateProperty(id: String, data: [String: Any]) async throws {
         try await db.collection("properties").document(id).updateData(data)
     }
     
-    func deleteProperty(id: String) async throws {
+    public func deleteProperty(id: String) async throws {
         try await db.collection("properties").document(id).delete()
     }
     
-    func incrementPropertyViewCount(id: String) async throws {
-        try await db.collection("properties").document(id).updateData([
-            "viewCount": FieldValue.increment(Int64(1))
-        ])
+    public func incrementPropertyViewCount(id: String) async throws {
+        let ref = db.collection("properties").document(id)
+        let data = ["viewCount": FieldValue.increment(Int64(1))] as [String: Any]
+        try await ref.updateData(data)
     }
     
     // MARK: - Favorites
     
-    func togglePropertyFavorite(userId: String, propertyId: String, isFavorite: Bool) async throws {
+    public func togglePropertyFavorite(userId: String, propertyId: String, isFavorite: Bool) async throws {
         let batch = db.batch()
         
         let userRef = db.collection("users").document(userId)
@@ -134,8 +158,10 @@ class DatabaseService: ObservableObject {
         try await batch.commit()
     }
     
-    func getUserFavorites(userId: String) -> AnyPublisher<[Property], Error> {
-        Future { promise in
+    public func getUserFavorites(userId: String) -> AnyPublisher<[Property], Error> {
+        Future { [weak self] promise in
+            guard let self = self else { return }
+            
             let listener = self.db.collection("users").document(userId)
                 .addSnapshotListener { documentSnapshot, error in
                     if let error = error {
@@ -181,13 +207,15 @@ class DatabaseService: ObservableObject {
                         promise(.failure(error))
                     }
                 }
+            
+            self.store(listener: listener, for: "favorites-\(userId)")
         }
         .eraseToAnyPublisher()
     }
     
     // MARK: - Messages
     
-    func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async throws -> String {
+    public func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async throws -> String {
         let query = db.collection("conversations")
             .whereField("propertyId", isEqualTo: propertyId)
             .whereField("tenantId", isEqualTo: tenantId)
@@ -205,11 +233,11 @@ class DatabaseService: ObservableObject {
                                      managerId: managerId)
         
         let docRef = db.collection("conversations").document()
-        try await docRef.setData(from: conversation)
+        try docRef.setData(from: conversation)
         return docRef.documentID
     }
     
-    func sendMessage(_ message: Message) async throws {
+    public func sendMessage(_ message: Message) async throws {
         let batch = db.batch()
         
         let messageRef = db.collection("messages").document()
@@ -225,8 +253,10 @@ class DatabaseService: ObservableObject {
         try await batch.commit()
     }
     
-    func getMessagesStream(conversationId: String) -> AnyPublisher<[Message], Error> {
-        Future { promise in
+    public func getMessagesStream(conversationId: String) -> AnyPublisher<[Message], Error> {
+        Future { [weak self] promise in
+            guard let self = self else { return }
+            
             let listener = self.db.collection("messages")
                 .whereField("conversationId", isEqualTo: conversationId)
                 .order(by: "timestamp", descending: true)
@@ -248,12 +278,16 @@ class DatabaseService: ObservableObject {
                         promise(.failure(error))
                     }
                 }
+            
+            self.store(listener: listener, for: "messages-\(conversationId)")
         }
         .eraseToAnyPublisher()
     }
     
-    func getConversationsStream(userId: String) -> AnyPublisher<[Conversation], Error> {
-        Future { promise in
+    public func getConversationsStream(userId: String) -> AnyPublisher<[Conversation], Error> {
+        Future { [weak self] promise in
+            guard let self = self else { return }
+            
             let listener = self.db.collection("conversations")
                 .whereFilter(Filter.orFilter([
                     Filter.whereField("tenantId", isEqualTo: userId),
@@ -278,13 +312,15 @@ class DatabaseService: ObservableObject {
                         promise(.failure(error))
                     }
                 }
+            
+            self.store(listener: listener, for: "conversations-\(userId)")
         }
         .eraseToAnyPublisher()
     }
     
-    func markConversationAsRead(conversationId: String) async throws {
-        try await db.collection("conversations")
-            .document(conversationId)
-            .updateData(["hasUnreadMessages": false])
+    public func markConversationAsRead(conversationId: String) async throws {
+        let ref = db.collection("conversations").document(conversationId)
+        let data = ["hasUnreadMessages": false] as [String: Any]
+        try await ref.updateData(data)
     }
 } 

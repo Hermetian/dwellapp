@@ -1,100 +1,146 @@
-import Foundation
+import SwiftUI
+import Models
 import FirebaseAuth
 import FirebaseFirestore
 import Combine
 
 @MainActor
-class AuthService: ObservableObject {
-    @Published var currentUser: User?
+public class AuthService: ObservableObject {
+    @Published public var currentUser: Models.User?
+    private var handle: AuthStateDidChangeListenerHandle?
     private let auth = Auth.auth()
     private let db = Firestore.firestore()
-    private var cancellables = Set<AnyCancellable>()
-    private var authStateHandler: AuthStateDidChangeListenerHandle?
-    private let authStatePublisher = PassthroughSubject<FirebaseAuth.User?, Never>()
     
-    init() {
+    public init() {
         setupAuthStateHandler()
     }
     
+    deinit {
+        if let handle = handle {
+            Auth.auth().removeStateDidChangeListener(handle)
+        }
+    }
+    
     private func setupAuthStateHandler() {
-        // Set up the auth state listener
-        authStateHandler = auth.addStateDidChangeListener { [weak self] _, user in
-            self?.authStatePublisher.send(user)
+        handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            if let user = user {
+                Task { [weak self] in
+                    do {
+                        try await self?.fetchUser(userId: user.uid)
+                    } catch {
+                        print("Error fetching user: \(error)")
+                        if let self = self {
+                            self.currentUser = nil
+                        }
+                    }
+                }
+            } else {
+                self?.currentUser = nil
+            }
+        }
+    }
+    
+    private func fetchUser(userId: String) async throws {
+        let document = try await db.collection("users").document(userId).getDocument()
+        let user = try document.data(as: Models.User.self)
+        await MainActor.run {
+            self.currentUser = user
+        }
+    }
+    
+    public func signIn(email: String, password: String) async throws {
+        do {
+            let result = try await auth.signIn(withEmail: email, password: password)
+            try await fetchUser(userId: result.user.uid)
+        } catch {
+            throw AuthError.signInError(error.localizedDescription)
+        }
+    }
+    
+    public func signUp(email: String, password: String, name: String) async throws {
+        do {
+            let result = try await auth.createUser(withEmail: email, password: password)
+            let user = Models.User(id: result.user.uid,
+                                 email: email,
+                                 name: name)
+            
+            try db.collection("users").document(result.user.uid).setData(from: user)
+            try await fetchUser(userId: result.user.uid)
+        } catch {
+            throw AuthError.signUpError(error.localizedDescription)
+        }
+    }
+    
+    public func signOut() async throws {
+        do {
+            try auth.signOut()
+            currentUser = nil as Models.User?
+        } catch {
+            throw AuthError.signOutError(error.localizedDescription)
+        }
+    }
+    
+    public func resetPassword(email: String) async throws {
+        do {
+            try await auth.sendPasswordReset(withEmail: email)
+        } catch {
+            throw AuthError.resetPasswordError(error.localizedDescription)
+        }
+    }
+    
+    public func updatePassword(newPassword: String) async throws {
+        guard let user = auth.currentUser else {
+            throw AuthError.userNotFound
         }
         
-        // Subscribe to auth state changes
-        authStatePublisher
-            .receive(on: DispatchQueue.main)
-            .flatMap { [weak self] (firebaseUser: FirebaseAuth.User?) -> AnyPublisher<User?, Never> in
-                guard let self = self, let firebaseUser = firebaseUser else {
-                    return Just<User?>(nil).eraseToAnyPublisher()
-                }
-                return self.fetchUser(withId: firebaseUser.uid)
-            }
-            .assign(to: \AuthService.currentUser, on: self)
-            .store(in: &cancellables)
-    }
-    
-    deinit {
-        // Remove the auth state listener when the service is deallocated
-        if let handler = authStateHandler {
-            auth.removeStateDidChangeListener(handler)
+        do {
+            try await user.updatePassword(to: newPassword)
+        } catch {
+            throw AuthError.updatePasswordError(error.localizedDescription)
         }
     }
     
-    private func fetchUser(withId uid: String) -> AnyPublisher<User?, Never> {
-        Future { [weak self] promise in
-            self?.db.collection("users").document(uid).getDocument { snapshot, error in
-                if let error = error {
-                    print("Error fetching user: \(error.localizedDescription)")
-                    promise(.success(nil))
-                    return
-                }
-                
-                guard let data = snapshot?.data(),
-                      let user = try? Firestore.Decoder().decode(User.self, from: data) else {
-                    promise(.success(nil))
-                    return
-                }
-                
-                promise(.success(user))
-            }
+    public func deleteAccount() async throws {
+        guard let user = auth.currentUser else {
+            throw AuthError.userNotFound
         }
-        .eraseToAnyPublisher()
+        
+        do {
+            let userId = user.uid
+            try await db.collection("users").document(userId).delete()
+            try await user.delete()
+            currentUser = nil as Models.User?
+        } catch {
+            throw AuthError.deleteAccountError(error.localizedDescription)
+        }
     }
+}
+
+enum AuthError: LocalizedError {
+    case signInError(String)
+    case signUpError(String)
+    case signOutError(String)
+    case resetPasswordError(String)
+    case updatePasswordError(String)
+    case deleteAccountError(String)
+    case userNotFound
     
-    func signIn(email: String, password: String) async throws {
-        try await auth.signIn(withEmail: email, password: password)
-    }
-    
-    func signUp(email: String, password: String, name: String) async throws {
-        let result = try await auth.createUser(withEmail: email, password: password)
-        let user = User(id: result.user.uid,
-                       email: email,
-                       name: name)
-        try await createUserDocument(user)
-    }
-    
-    private func createUserDocument(_ user: User) async throws {
-        guard let userId = user.id else { return }
-        try await db.collection("users").document(userId).setData(from: user)
-    }
-    
-    func signOut() throws {
-        try auth.signOut()
-    }
-    
-    func resetPassword(email: String) async throws {
-        try await auth.sendPasswordReset(withEmail: email)
-    }
-    
-    func updatePassword(newPassword: String) async throws {
-        try await auth.currentUser?.updatePassword(to: newPassword)
-    }
-    
-    func deleteAccount() async throws {
-        guard let user = auth.currentUser else { return }
-        try await db.collection("users").document(user.uid).delete()
-        try await user.delete()
+    var errorDescription: String? {
+        switch self {
+        case .signInError(let message):
+            return "Sign in failed: \(message)"
+        case .signUpError(let message):
+            return "Sign up failed: \(message)"
+        case .signOutError(let message):
+            return "Sign out failed: \(message)"
+        case .resetPasswordError(let message):
+            return "Password reset failed: \(message)"
+        case .updatePasswordError(let message):
+            return "Password update failed: \(message)"
+        case .deleteAccountError(let message):
+            return "Account deletion failed: \(message)"
+        case .userNotFound:
+            return "User not found"
+        }
     }
 } 

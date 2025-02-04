@@ -1,24 +1,211 @@
 import SwiftUI
-import PhotosUI
+import Models
+import UIKit
+import ViewModels
 
 struct ProfileView: View {
-    @StateObject private var profileViewModel = ProfileViewModel()
-    @State private var showImagePicker = false
-    @State private var showEditProfile = false
-    @State private var showChangePassword = false
-    @State private var showDeleteAccount = false
-    @State private var selectedImage: PhotosPickerItem?
+    @EnvironmentObject private var appViewModel: AppViewModel
+    @State private var showingEditProfile = false
+    @State private var showingSettings = false
+    @State private var showingLogoutAlert = false
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     // Profile Header
-                    VStack(spacing: 16) {
-                        // Profile Image
-                        ZStack(alignment: .bottomTrailing) {
-                            if let user = profileViewModel.user {
-                                AsyncImage(url: URL(string: user.profileImageUrl ?? "")) { image in
+                    profileHeader
+                    
+                    // Action Buttons
+                    actionButtons
+                    
+                    // Stats
+                    statsView
+                    
+                    // Listed Properties
+                    listedPropertiesSection
+                }
+                .padding()
+            }
+            .navigationTitle("Profile")
+            .navigationBarItems(trailing: settingsButton)
+            .sheet(isPresented: $showingEditProfile) {
+                EditProfileView()
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
+            .alert("Sign Out", isPresented: $showingLogoutAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Sign Out", role: .destructive) {
+                    Task {
+                        await appViewModel.authViewModel.signOut()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to sign out?")
+            }
+        }
+    }
+    
+    private var profileHeader: some View {
+        VStack(spacing: 16) {
+            AsyncImage(url: URL(string: appViewModel.profileViewModel.profileImageUrl ?? "")) { image in
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } placeholder: {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.gray)
+            }
+            .frame(width: 100, height: 100)
+            .clipShape(Circle())
+            
+            VStack(spacing: 8) {
+                Text(appViewModel.profileViewModel.displayName ?? "User")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Text(appViewModel.profileViewModel.email ?? "")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            Button("Edit Profile") {
+                showingEditProfile = true
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+    
+    private var actionButtons: some View {
+        HStack(spacing: 20) {
+            Button {
+                // Favorites action
+            } label: {
+                VStack {
+                    Image(systemName: "heart.fill")
+                        .font(.title2)
+                    Text("Favorites")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            
+            Button {
+                // Messages action
+            } label: {
+                VStack {
+                    Image(systemName: "message.fill")
+                        .font(.title2)
+                    Text("Messages")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            
+            Button {
+                // Settings action
+                showingSettings = true
+            } label: {
+                VStack {
+                    Image(systemName: "gear")
+                        .font(.title2)
+                    Text("Settings")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var statsView: some View {
+        HStack(spacing: 40) {
+            VStack {
+                Text("\(appViewModel.propertyViewModel.properties.count)")
+                    .font(.title)
+                    .fontWeight(.bold)
+                Text("Listed")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            VStack {
+                Text("\(appViewModel.propertyViewModel.favoriteProperties.count)")
+                    .font(.title)
+                    .fontWeight(.bold)
+                Text("Favorites")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            VStack {
+                Text("0") // TODO: Add views count
+                    .font(.title)
+                    .fontWeight(.bold)
+                Text("Views")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical)
+    }
+    
+    private var listedPropertiesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Listed Properties")
+                .font(.headline)
+            
+            if appViewModel.propertyViewModel.properties.isEmpty {
+                Text("No properties listed yet")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(appViewModel.propertyViewModel.properties) { property in
+                    PropertyCard(property: property)
+                }
+            }
+        }
+    }
+    
+    private var settingsButton: some View {
+        Button {
+            showingLogoutAlert = true
+        } label: {
+            Image(systemName: "rectangle.portrait.and.arrow.right")
+        }
+    }
+}
+
+struct EditProfileView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
+    @State private var displayName = ""
+    @State private var bio = ""
+    @State private var showingImagePicker = false
+    @State private var selectedImage: UIImage?
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    HStack {
+                        Spacer()
+                        
+                        Button {
+                            showingImagePicker = true
+                        } label: {
+                            if let selectedImage = selectedImage {
+                                Image(uiImage: selectedImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 100, height: 100)
+                                    .clipShape(Circle())
+                            } else {
+                                AsyncImage(url: URL(string: appViewModel.profileViewModel.profileImageUrl ?? "")) { image in
                                     image
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
@@ -27,141 +214,48 @@ struct ProfileView: View {
                                         .font(.system(size: 80))
                                         .foregroundColor(.gray)
                                 }
-                                .frame(width: 120, height: 120)
+                                .frame(width: 100, height: 100)
                                 .clipShape(Circle())
                             }
-                            
-                            PhotosPicker(selection: $selectedImage) {
-                                Image(systemName: "camera.circle.fill")
-                                    .font(.system(size: 30))
-                                    .foregroundColor(.blue)
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                            }
                         }
                         
-                        // User Info
-                        VStack(spacing: 4) {
-                            Text(profileViewModel.user?.name ?? "")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            Text(profileViewModel.user?.email ?? "")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
+                        Spacer()
                     }
-                    .padding(.top)
-                    
-                    // Stats
-                    HStack(spacing: 40) {
-                        VStack {
-                            Text("\(profileViewModel.myProperties.count)")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            Text("Properties")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        VStack {
-                            Text("\(profileViewModel.user?.favoriteListings.count ?? 0)")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            Text("Favorites")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    // My Properties
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("My Properties")
-                            .font(.headline)
-                        
-                        if profileViewModel.myProperties.isEmpty {
-                            Text("You haven't listed any properties yet")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        } else {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 16) {
-                                    ForEach(profileViewModel.myProperties) { property in
-                                        ProfilePropertyCard(property: property)
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
-                    
-                    // Settings
-                    VStack(spacing: 0) {
-                        SettingsButton(
-                            title: "Edit Profile",
-                            icon: "person.fill",
-                            action: { showEditProfile = true }
-                        )
-                        
-                        SettingsButton(
-                            title: "Change Password",
-                            icon: "lock.fill",
-                            action: { showChangePassword = true }
-                        )
-                        
-                        SettingsButton(
-                            title: "Delete Account",
-                            icon: "trash.fill",
-                            iconColor: .red,
-                            action: { showDeleteAccount = true }
-                        )
-                        
-                        SettingsButton(
-                            title: "Sign Out",
-                            icon: "arrow.right.square.fill",
-                            iconColor: .red,
-                            action: { profileViewModel.signOut() }
-                        )
-                    }
-                    .background(Color(.systemBackground))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
+                    .listRowBackground(Color.clear)
+                }
+                
+                Section(header: Text("Profile Information")) {
+                    TextField("Display Name", text: $displayName)
+                    TextField("Bio", text: $bio, axis: .vertical)
+                        .lineLimit(3...6)
                 }
             }
-            .navigationTitle("Profile")
-            .onChange(of: selectedImage) { _ in
-                Task {
-                    if let data = try? await selectedImage?.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        await profileViewModel.updateProfile(profileImage: image)
-                    }
+            .navigationTitle("Edit Profile")
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    dismiss()
+                },
+                trailing: Button("Save") {
+                    saveProfile()
                 }
+            )
+            .onAppear {
+                displayName = appViewModel.profileViewModel.displayName ?? ""
+                bio = appViewModel.profileViewModel.bio ?? ""
             }
-            .sheet(isPresented: $showEditProfile) {
-                EditProfileView(user: profileViewModel.user)
+            .sheet(isPresented: $showingImagePicker) {
+                ImagePicker(image: $selectedImage)
             }
-            .sheet(isPresented: $showChangePassword) {
-                ChangePasswordView()
+        }
+    }
+    
+    private func saveProfile() {
+        Task {
+            if let image = selectedImage {
+                await appViewModel.profileViewModel.updateProfile(profileImage: image)
             }
-            .alert("Delete Account", isPresented: $showDeleteAccount) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await profileViewModel.deleteAccount()
-                    }
-                }
-            } message: {
-                Text("Are you sure you want to delete your account? This action cannot be undone.")
-            }
-            .alert("Error", isPresented: .constant(profileViewModel.error != nil)) {
-                Button("OK") {
-                    profileViewModel.error = nil
-                }
-            } message: {
-                Text(profileViewModel.error?.localizedDescription ?? "")
-            }
+            await appViewModel.profileViewModel.updateProfile(name: displayName, bio: bio)
+            dismiss()
         }
     }
 }
@@ -231,53 +325,12 @@ struct SettingsButton: View {
     }
 }
 
-struct EditProfileView: View {
-    let user: User?
-    @StateObject private var profileViewModel = ProfileViewModel()
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String = ""
-    
-    var body: some View {
-        NavigationView {
-            Form {
-                Section {
-                    TextField("Name", text: $name)
-                }
-                
-                Section {
-                    Button("Save Changes") {
-                        Task {
-                            await profileViewModel.updateProfile(name: name)
-                            dismiss()
-                        }
-                    }
-                    .disabled(name.isEmpty || profileViewModel.isLoading)
-                }
-            }
-            .navigationTitle("Edit Profile")
-            .navigationBarItems(leading: Button("Cancel") {
-                dismiss()
-            })
-            .onAppear {
-                name = user?.name ?? ""
-            }
-        }
-    }
-}
-
 struct ChangePasswordView: View {
-    @StateObject private var profileViewModel = ProfileViewModel()
+    @EnvironmentObject private var appViewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var currentPassword = ""
     @State private var newPassword = ""
     @State private var confirmPassword = ""
-    
-    private var isFormValid: Bool {
-        !currentPassword.isEmpty &&
-        !newPassword.isEmpty &&
-        newPassword == confirmPassword &&
-        newPassword.count >= 8
-    }
     
     var body: some View {
         NavigationView {
@@ -285,21 +338,23 @@ struct ChangePasswordView: View {
                 Section {
                     SecureField("Current Password", text: $currentPassword)
                     SecureField("New Password", text: $newPassword)
-                    SecureField("Confirm New Password", text: $confirmPassword)
+                    SecureField("Confirm Password", text: $confirmPassword)
                 }
                 
                 Section {
-                    Button("Change Password") {
+                    Button("Update Password") {
                         Task {
-                            await profileViewModel.updatePassword(newPassword: newPassword)
-                            dismiss()
+                            if newPassword == confirmPassword {
+                                await appViewModel.profileViewModel.updatePassword(newPassword: newPassword)
+                                dismiss()
+                            }
                         }
                     }
-                    .disabled(!isFormValid || profileViewModel.isLoading)
+                    .disabled(newPassword.isEmpty || newPassword != confirmPassword)
                 }
             }
             .navigationTitle("Change Password")
-            .navigationBarItems(leading: Button("Cancel") {
+            .navigationBarItems(trailing: Button("Cancel") {
                 dismiss()
             })
         }
@@ -308,4 +363,5 @@ struct ChangePasswordView: View {
 
 #Preview {
     ProfileView()
+        .environmentObject(AppViewModel())
 } 

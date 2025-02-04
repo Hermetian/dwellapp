@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct MessagingView: View {
+    @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var messagingViewModel = MessagingViewModel()
-    @StateObject private var authViewModel = AuthViewModel()
     
     var body: some View {
         NavigationView {
@@ -18,7 +18,7 @@ struct MessagingView: View {
             .navigationTitle("Messages")
         }
         .onAppear {
-            if let userId = authViewModel.currentUser?.id {
+            if let userId = appViewModel.authViewModel.currentUser?.id {
                 messagingViewModel.loadConversations(for: userId)
             }
         }
@@ -111,8 +111,8 @@ struct ConversationRow: View {
 
 struct ConversationView: View {
     let conversation: Conversation
+    @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var messagingViewModel = MessagingViewModel()
-    @StateObject private var authViewModel = AuthViewModel()
     @State private var messageText = ""
     
     var body: some View {
@@ -123,7 +123,7 @@ struct ConversationView: View {
                     ForEach(messagingViewModel.messages) { message in
                         MessageBubble(
                             message: message,
-                            isFromCurrentUser: message.senderId == authViewModel.currentUser?.id
+                            isFromCurrentUser: message.senderId == appViewModel.authViewModel.currentUser?.id
                         )
                     }
                 }
@@ -160,7 +160,7 @@ struct ConversationView: View {
     }
     
     private func sendMessage() {
-        guard let userId = authViewModel.currentUser?.id,
+        guard let userId = appViewModel.authViewModel.currentUser?.id,
               let conversationId = conversation.id,
               !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
@@ -234,4 +234,5 @@ struct EmptyConversationsView: View {
 
 #Preview {
     MessagingView()
+        .environmentObject(AppViewModel())
 } 

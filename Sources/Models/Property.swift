@@ -1,26 +1,26 @@
-import Foundation
 import FirebaseFirestore
 import FirebaseFirestoreSwift
 
-struct Property: Identifiable, Codable {
-    @DocumentID var id: String?
-    let managerId: String
-    let title: String
-    let description: String
-    let price: Double
-    let address: String
-    let videoUrl: String
-    var thumbnailUrl: String?
-    let bedrooms: Int
-    let bathrooms: Int
-    let squareFootage: Double
-    var viewCount: Int
-    var favoriteCount: Int
-    let availableFrom: Date
-    let createdAt: Date
-    let updatedAt: Date
-    @ServerTimestamp var serverTimestamp: Timestamp?
-    var amenities: [String: Bool]?
+public struct Property: Identifiable, Codable {
+    @DocumentID public var id: String?
+    public let managerId: String
+    public let title: String
+    public let description: String
+    public let price: Double
+    public let address: String
+    public let videoUrl: String
+    public var thumbnailUrl: String?
+    public let bedrooms: Int
+    public let bathrooms: Int
+    public let squareFootage: Double
+    public var viewCount: Int
+    public var favoriteCount: Int
+    public let availableFrom: Date
+    public let createdAt: Date
+    public let updatedAt: Date
+    @ServerTimestamp public var serverTimestamp: Timestamp?
+    public var amenities: [String: Bool]?
+    public var imageUrl: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -41,9 +41,10 @@ struct Property: Identifiable, Codable {
         case updatedAt
         case serverTimestamp
         case amenities
+        case imageUrl
     }
     
-    init(id: String? = nil,
+    public init(id: String? = nil,
          managerId: String,
          title: String,
          description: String,
@@ -60,7 +61,8 @@ struct Property: Identifiable, Codable {
          createdAt: Date = Date(),
          updatedAt: Date = Date(),
          serverTimestamp: Timestamp? = nil,
-         amenities: [String: Bool]? = nil) {
+         amenities: [String: Bool]? = nil,
+         imageUrl: String? = nil) {
         self.id = id
         self.managerId = managerId
         self.title = title
@@ -79,9 +81,10 @@ struct Property: Identifiable, Codable {
         self.updatedAt = updatedAt
         self.serverTimestamp = serverTimestamp
         self.amenities = amenities
+        self.imageUrl = imageUrl
     }
     
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id)
         managerId = try container.decode(String.self, forKey: .managerId)
@@ -101,9 +104,10 @@ struct Property: Identifiable, Codable {
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         serverTimestamp = try container.decodeIfPresent(Timestamp.self, forKey: .serverTimestamp)
         amenities = try container.decodeIfPresent([String: Bool].self, forKey: .amenities)
+        imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
     }
     
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(id, forKey: .id)
         try container.encode(managerId, forKey: .managerId)
@@ -123,5 +127,6 @@ struct Property: Identifiable, Codable {
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(serverTimestamp, forKey: .serverTimestamp)
         try container.encodeIfPresent(amenities, forKey: .amenities)
+        try container.encodeIfPresent(imageUrl, forKey: .imageUrl)
     }
 } 

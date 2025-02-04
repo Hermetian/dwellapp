@@ -1,40 +1,38 @@
-import Foundation
+import SwiftUI
+import Models
 import Combine
+import Services
 
 @MainActor
-class AuthViewModel: ObservableObject {
-    @Published var currentUser: User?
-    @Published var isAuthenticated = false
-    @Published var error: Error?
-    @Published var isLoading = false
+public class AuthViewModel: ObservableObject {
+    @Published public var currentUser: User?
+    @Published public var isLoading = false
+    @Published public var error: Error?
+    
+    public var isAuthenticated: Bool {
+        currentUser != nil
+    }
     
     private var authService: AuthService!
     private var cancellables = Set<AnyCancellable>()
     
-    nonisolated init(authService: AuthService? = nil) {
+    public init(authService: AuthService? = nil) {
         if let authService = authService {
             self.authService = authService
+        } else {
+            self.authService = AuthService()
         }
-        Task { @MainActor in
-            if self.authService == nil {
-                self.authService = await AuthService()
-            }
-            await self.setup()
-        }
-    }
-    
-    private func setup() {
-        // Observe auth state changes
-        authService.$currentUser
+        
+        // Subscribe to auth state changes
+        self.authService.$currentUser
             .receive(on: DispatchQueue.main)
             .sink { [weak self] user in
                 self?.currentUser = user
-                self?.isAuthenticated = user != nil
             }
             .store(in: &cancellables)
     }
     
-    func signIn(email: String, password: String) async {
+    public func signIn(email: String, password: String) async throws {
         isLoading = true
         error = nil
         
@@ -42,12 +40,13 @@ class AuthViewModel: ObservableObject {
             try await authService.signIn(email: email, password: password)
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func signUp(email: String, password: String, name: String) async {
+    func signUp(email: String, password: String, name: String) async throws {
         isLoading = true
         error = nil
         
@@ -55,22 +54,27 @@ class AuthViewModel: ObservableObject {
             try await authService.signUp(email: email, password: password, name: name)
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func signOut() {
+    public func signOut() async throws {
+        isLoading = true
         error = nil
         
         do {
-            try authService.signOut()
+            try await authService.signOut()
         } catch {
             self.error = error
+            throw error
         }
+        
+        isLoading = false
     }
     
-    func resetPassword(email: String) async {
+    func resetPassword(email: String) async throws {
         isLoading = true
         error = nil
         
@@ -78,12 +82,13 @@ class AuthViewModel: ObservableObject {
             try await authService.resetPassword(email: email)
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func updatePassword(newPassword: String) async {
+    func updatePassword(newPassword: String) async throws {
         isLoading = true
         error = nil
         
@@ -91,12 +96,13 @@ class AuthViewModel: ObservableObject {
             try await authService.updatePassword(newPassword: newPassword)
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func deleteAccount() async {
+    func deleteAccount() async throws {
         isLoading = true
         error = nil
         
@@ -104,6 +110,7 @@ class AuthViewModel: ObservableObject {
             try await authService.deleteAccount()
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false

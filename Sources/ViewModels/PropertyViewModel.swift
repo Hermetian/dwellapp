@@ -1,17 +1,25 @@
-import Foundation
+import SwiftUI
+import Models
 import Combine
 import AVFoundation
+import Services
+
+#if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 @MainActor
-class PropertyViewModel: ObservableObject {
-    @Published var properties: [Property] = []
-    @Published var favoriteProperties: [Property] = []
-    @Published var selectedProperty: Property?
-    @Published var isLoading = false
-    @Published var error: Error?
-    @Published var currentPage = 0
-    @Published var hasMoreProperties = true
-    @Published var currentUserId: String?
+public class PropertyViewModel: ObservableObject {
+    @Published public var properties: [Property] = []
+    @Published public var favoriteProperties: [Property] = []
+    @Published public var selectedProperty: Property?
+    @Published public var isLoading = false
+    @Published public var error: Error?
+    @Published public var currentPage = 0
+    @Published public var hasMoreProperties = true
+    @Published public var currentUserId: String?
     
     private var databaseService: DatabaseService!
     private var storageService: StorageService!
@@ -20,7 +28,7 @@ class PropertyViewModel: ObservableObject {
     var lastPropertyId: String?
     private let pageSize = 10
     
-    nonisolated init(databaseService: DatabaseService? = nil,
+    public nonisolated init(databaseService: DatabaseService? = nil,
                     storageService: StorageService? = nil,
                     videoService: VideoService? = nil) {
         if let databaseService = databaseService {
@@ -34,15 +42,15 @@ class PropertyViewModel: ObservableObject {
         }
         Task { @MainActor in
             if self.databaseService == nil {
-                self.databaseService = await DatabaseService()
+                self.databaseService = DatabaseService()
             }
             if self.storageService == nil {
-                self.storageService = await StorageService()
+                self.storageService = StorageService()
             }
             if self.videoService == nil {
-                self.videoService = await VideoService()
+                self.videoService = VideoService()
             }
-            await self.setup()
+            self.setup()
         }
     }
     
@@ -51,7 +59,7 @@ class PropertyViewModel: ObservableObject {
         loadProperties()
     }
     
-    func loadProperties() {
+    public func loadProperties() {
         guard !isLoading else { return }
         isLoading = true
         error = nil
@@ -75,7 +83,7 @@ class PropertyViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func loadFavorites(for userId: String) {
+    public func loadFavorites(for userId: String) {
         guard !isLoading else { return }
         isLoading = true
         error = nil
@@ -93,8 +101,8 @@ class PropertyViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func toggleFavorite(propertyId: String, userId: String) async {
-        guard !isLoading else { return }
+    public func toggleFavorite(propertyId: String, userId: String) async throws {
+        guard !isLoading else { throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
         
@@ -105,72 +113,34 @@ class PropertyViewModel: ObservableObject {
                 propertyId: propertyId,
                 isFavorite: !isFavorite
             )
+            
             // Refresh favorites
             loadFavorites(for: userId)
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func incrementViewCount(for propertyId: String) async {
-        do {
-            try await databaseService.incrementPropertyViewCount(id: propertyId)
-        } catch {
-            self.error = error
-        }
-    }
-    
-    func uploadProperty(title: String,
-                       description: String,
-                       price: Double,
-                       address: String,
-                       videoURL: URL,
-                       bedrooms: Int,
-                       bathrooms: Int,
-                       squareFootage: Double,
-                       availableFrom: Date,
-                       managerId: String,
-                       amenities: [String: Bool]?) async {
-        guard !isLoading else { return }
+    public func incrementViewCount(for propertyId: String) async throws {
+        guard !isLoading else { throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
         
         do {
-            // Upload video and get URLs
-            let (videoUrl, thumbnailUrl) = try await storageService.uploadVideo(videoURL: videoURL)
-            
-            // Create property
-            let property = Property(
-                managerId: managerId,
-                title: title,
-                description: description,
-                price: price,
-                address: address,
-                videoUrl: videoUrl,
-                thumbnailUrl: thumbnailUrl,
-                bedrooms: bedrooms,
-                bathrooms: bathrooms,
-                squareFootage: squareFootage,
-                availableFrom: availableFrom,
-                amenities: amenities
-            )
-            
-            // Save to database
-            let _ = try await databaseService.createProperty(property)
-            
-            // Refresh properties
-            loadProperties()
+            try await databaseService.incrementPropertyViewCount(id: propertyId)
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func deleteProperty(_ property: Property) async {
-        guard !isLoading else { return }
+    public func deleteProperty(_ property: Property) async throws {
+        guard !isLoading else { throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
         
@@ -191,15 +161,74 @@ class PropertyViewModel: ObservableObject {
             favoriteProperties.removeAll { $0.id == property.id }
         } catch {
             self.error = error
+            throw error
         }
         
         isLoading = false
     }
     
-    func resetProperties() {
+    public func resetProperties() {
         properties = []
         lastPropertyId = nil
         hasMoreProperties = true
         loadProperties()
     }
+
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+    public func createProperty(title: String,
+                             description: String,
+                             price: Double,
+                             location: String,
+                             videoURL: URL,
+                             bedrooms: Int = 0,
+                             bathrooms: Int = 0,
+                             squareFootage: Double = 0,
+                             availableFrom: Date = Date(),
+                             amenities: [String: Bool]? = nil) async throws -> String {
+        guard !isLoading else { throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
+        guard let managerId = currentUserId else { throw NSError(domain: "PropertyViewModel", code: -2, userInfo: [NSLocalizedDescriptionKey: "User ID not found"]) }
+        
+        isLoading = true
+        error = nil
+        
+        do {
+            // Process and upload video
+            let compressedVideoURL = try await videoService.compressVideo(url: videoURL)
+            let videoUrl = try await storageService.uploadData(data: try Data(contentsOf: compressedVideoURL), path: "videos/\(UUID().uuidString).mp4")
+            
+            // Generate and upload thumbnail
+            let thumbnailImage = try await videoService.generateThumbnail(from: videoURL)
+            let thumbnailUrl = try await storageService.uploadData(data: thumbnailImage.jpegData(compressionQuality: 0.7)!, path: "thumbnails/\(UUID().uuidString).jpg")
+            
+            // Create property
+            let property = Property(
+                managerId: managerId,
+                title: title,
+                description: description,
+                price: price,
+                address: location,
+                videoUrl: videoUrl,
+                thumbnailUrl: thumbnailUrl,
+                bedrooms: bedrooms,
+                bathrooms: bathrooms,
+                squareFootage: squareFootage,
+                availableFrom: availableFrom,
+                amenities: amenities
+            )
+            
+            // Save to database
+            let _ = try await databaseService.createProperty(property)
+            
+            // Refresh properties
+            loadProperties()
+            
+            isLoading = false
+            return property.id ?? ""
+        } catch {
+            self.error = error
+            isLoading = false
+            throw error
+        }
+    }
+    #endif
 } 

@@ -1,36 +1,38 @@
-import Foundation
+import SwiftUI
+import Models
 import Combine
+import Services
 
 @MainActor
-class MessagingViewModel: ObservableObject {
-    @Published var conversations: [Conversation] = []
-    @Published var messages: [Message] = []
-    @Published var selectedConversation: Conversation?
-    @Published var isLoading = false
-    @Published var error: Error?
+public class MessagingViewModel: ObservableObject {
+    @Published public var conversations: [Conversation] = []
+    @Published public var messages: [Message] = []
+    @Published public var selectedConversation: Conversation?
+    @Published public var isLoading = false
+    @Published public var error: Error?
     
     private var databaseService: DatabaseService!
     private var cancellables = Set<AnyCancellable>()
     
-    nonisolated init(databaseService: DatabaseService? = nil) {
+    public nonisolated init(databaseService: DatabaseService? = nil) {
         if let databaseService = databaseService {
             self.databaseService = databaseService
         }
         Task { @MainActor in
             if self.databaseService == nil {
-                self.databaseService = await DatabaseService()
+                self.databaseService = DatabaseService()
             }
-            await self.setup()
+            self.setup()
         }
     }
     
-    private func setup() async {
+    private func setup() {
         // Initial setup if needed
         // For now, we don't need to do anything here since conversations
         // and messages are loaded on demand
     }
     
-    func loadConversations(for userId: String) {
+    public func loadConversations(for userId: String) {
         guard !isLoading else { return }
         isLoading = true
         error = nil
@@ -48,7 +50,7 @@ class MessagingViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func loadMessages(for conversationId: String) {
+    public func loadMessages(for conversationId: String) {
         guard !isLoading else { return }
         isLoading = true
         error = nil
@@ -66,7 +68,7 @@ class MessagingViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func sendMessage(content: String, conversationId: String, senderId: String) async {
+    public func sendMessage(content: String, conversationId: String, senderId: String) async {
         guard !isLoading else { return }
         isLoading = true
         error = nil
@@ -88,7 +90,7 @@ class MessagingViewModel: ObservableObject {
         isLoading = false
     }
     
-    func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async -> String? {
+    public func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async -> String? {
         guard !isLoading else { return nil }
         isLoading = true
         error = nil
@@ -106,7 +108,7 @@ class MessagingViewModel: ObservableObject {
         }
     }
     
-    func markConversationAsRead(_ conversationId: String) async {
+    public func markConversationAsRead(_ conversationId: String) async {
         do {
             try await databaseService.markConversationAsRead(conversationId: conversationId)
         } catch {
