@@ -45,12 +45,12 @@ public struct ImagePicker: ViewModifier {
     }
 }
 
-struct ProfileImageView: View {
+public struct ProfileImageView: View {
     let imageUrl: String?
     let selectedImageData: Data?
     let onTap: () -> Void
     
-    var body: some View {
+    public var body: some View {
         Button(action: onTap) {
             if let imageData = selectedImageData {
                 #if os(iOS)
@@ -95,7 +95,7 @@ public struct ProfileView: View {
     @State private var showingImagePicker = false
     @State private var selectedImageData: Data?
     
-    var body: some View {
+    public var body: some View {
         NavigationView {
             Form {
                 Section {
@@ -262,7 +262,7 @@ public struct ProfileView: View {
     }
 }
 
-struct EditProfileView: View {
+public struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var displayName = ""
@@ -270,7 +270,7 @@ struct EditProfileView: View {
     @State private var showingImagePicker = false
     @State private var selectedImageData: Data?
     
-    var body: some View {
+    public var body: some View {
         NavigationView {
             Form {
                 Section {
@@ -318,12 +318,12 @@ struct EditProfileView: View {
     }
 }
 
-struct ProfileImageSection: View {
+public struct ProfileImageSection: View {
     @Binding var selectedImageData: Data?
     let profileImageUrl: String?
     let onImagePickerTap: () -> Void
     
-    var body: some View {
+    public var body: some View {
         HStack {
             Spacer()
             
@@ -340,11 +340,11 @@ struct ProfileImageSection: View {
     }
 }
 
-struct ProfileImage: View {
+public struct ProfileImage: View {
     let imageData: Data?
     let imageUrl: String?
     
-    var body: some View {
+    public var body: some View {
         Group {
             if let imageData = imageData {
                 #if os(iOS)
@@ -377,10 +377,10 @@ struct ProfileImage: View {
     }
 }
 
-struct PropertyListItem: View {
+public struct PropertyListItem: View {
     let property: Property
     
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading) {
             // Property Image
             AsyncImage(url: URL(string: property.thumbnailUrl ?? "")) { image in
@@ -414,13 +414,13 @@ struct PropertyListItem: View {
     }
 }
 
-struct SettingsButton: View {
+public struct SettingsButton: View {
     let title: String
     let icon: String
     var iconColor: Color = .blue
     let action: () -> Void
     
-    var body: some View {
+    public var body: some View {
         Button(action: action) {
             HStack {
                 Image(systemName: icon)
@@ -442,14 +442,14 @@ struct SettingsButton: View {
     }
 }
 
-struct ChangePasswordView: View {
+public struct ChangePasswordView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var currentPassword = ""
     @State private var newPassword = ""
     @State private var confirmPassword = ""
     
-    var body: some View {
+    public var body: some View {
         NavigationView {
             Form {
                 Section {

@@ -185,12 +185,6 @@ targets:
       - target: Views_iOS
         link: true
         embed: false
-      - package: Firebase
-        product: FirebaseAuth
-      - package: Firebase
-        product: FirebaseStorage
-      - package: Firebase
-        product: FirebaseFirestore
     settings:
       base:
         INFOPLIST_FILE: Sources/Info.plist
@@ -232,12 +226,6 @@ targets:
       - target: Views_macOS
         link: true
         embed: false
-      - package: Firebase
-        product: FirebaseAuth
-      - package: Firebase
-        product: FirebaseStorage
-      - package: Firebase
-        product: FirebaseFirestore
     settings:
       base:
         INFOPLIST_FILE: Sources/Info.plist

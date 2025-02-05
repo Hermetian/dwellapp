@@ -1,8 +1,7 @@
-import FirebaseFirestore
 import Foundation
 
 public struct User: Identifiable, Codable {
-    @DocumentID public var id: String?
+    public var id: String?
     public let email: String
     public let name: String
     public var profileImageUrl: String?
@@ -11,7 +10,6 @@ public struct User: Identifiable, Codable {
     public var phoneNumber: String?
     public var createdAt: Date
     public var updatedAt: Date
-    @ServerTimestamp public var serverTimestamp: Timestamp?
     
     private enum CodingKeys: String, CodingKey {
         case id
@@ -23,7 +21,6 @@ public struct User: Identifiable, Codable {
         case phoneNumber
         case createdAt
         case updatedAt
-        case serverTimestamp
     }
     
     public init(
@@ -35,8 +32,7 @@ public struct User: Identifiable, Codable {
         bio: String? = nil,
         phoneNumber: String? = nil,
         createdAt: Date = Date(),
-        updatedAt: Date = Date(),
-        serverTimestamp: Timestamp? = nil
+        updatedAt: Date = Date()
     ) {
         self.id = id
         self.email = email
@@ -47,7 +43,6 @@ public struct User: Identifiable, Codable {
         self.phoneNumber = phoneNumber
         self.createdAt = createdAt
         self.updatedAt = updatedAt
-        self.serverTimestamp = serverTimestamp
     }
     
     public init(from decoder: Decoder) throws {
@@ -61,7 +56,6 @@ public struct User: Identifiable, Codable {
         phoneNumber = try container.decodeIfPresent(String.self, forKey: .phoneNumber)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
-        serverTimestamp = try container.decodeIfPresent(Timestamp.self, forKey: .serverTimestamp)
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -75,7 +69,6 @@ public struct User: Identifiable, Codable {
         try container.encodeIfPresent(phoneNumber, forKey: .phoneNumber)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
-        try container.encodeIfPresent(serverTimestamp, forKey: .serverTimestamp)
     }
     
     // MARK: - Helper Methods
@@ -97,8 +90,7 @@ public struct User: Identifiable, Codable {
                    bio: bio,
                    phoneNumber: phoneNumber,
                    createdAt: createdAt,
-                   updatedAt: updatedAt,
-                   serverTimestamp: serverTimestamp)
+                   updatedAt: updatedAt)
     }
     
     public func removeFromFavorites(_ listingId: String) -> User {
@@ -111,7 +103,6 @@ public struct User: Identifiable, Codable {
                    bio: bio,
                    phoneNumber: phoneNumber,
                    createdAt: createdAt,
-                   updatedAt: updatedAt,
-                   serverTimestamp: serverTimestamp)
+                   updatedAt: updatedAt)
     }
 } 
