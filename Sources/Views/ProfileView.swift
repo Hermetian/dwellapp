@@ -11,17 +11,24 @@ import ViewModels
 struct ImagePicker: ViewModifier {
     @Binding var isPresented: Bool
     let onSelect: (Data) -> Void
+    @State private var selectedItem: PhotosPickerItem?
     
     func body(content: Content) -> some View {
         content
             #if os(iOS)
             .sheet(isPresented: $isPresented) {
-                PHPickerViewController(configuration: {
-                    var config = PHPickerConfiguration()
-                    config.filter = .images
-                    return config
-                }())
-                .ignoresSafeArea()
+                PhotosPicker(
+                    "Select a photo",
+                    selection: $selectedItem,
+                    matching: .images
+                )
+                .onChange(of: selectedItem) { newItem in
+                    Task {
+                        if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                            onSelect(data)
+                        }
+                    }
+                }
             }
             #else
             .fileImporter(
@@ -41,29 +48,100 @@ struct ImagePicker: ViewModifier {
     }
 }
 
+struct ProfileImageView: View {
+    let imageUrl: String?
+    let selectedImageData: Data?
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            if let imageData = selectedImageData {
+                #if os(iOS)
+                if let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 100, height: 100)
+                        .clipShape(Circle())
+                }
+                #elseif os(macOS)
+                if let nsImage = NSImage(data: imageData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 100, height: 100)
+                        .clipShape(Circle())
+                }
+                #endif
+            } else {
+                AsyncImage(url: URL(string: imageUrl ?? "")) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.gray)
+                }
+                .frame(width: 100, height: 100)
+                .clipShape(Circle())
+            }
+        }
+    }
+}
+
 struct ProfileView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var showingEditProfile = false
     @State private var showingSettings = false
     @State private var showingLogoutAlert = false
+    @State private var showingImagePicker = false
+    @State private var selectedImageData: Data?
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Profile Header
-                    profileHeader
-                    
-                    // Action Buttons
+            Form {
+                Section {
+                    VStack {
+                        // Profile Image
+                        ProfileImageView(
+                            imageUrl: appViewModel.profileViewModel.user?.profileImageUrl,
+                            selectedImageData: selectedImageData,
+                            onTap: { showingImagePicker = true }
+                        )
+                        
+                        // User Info
+                        if let user = appViewModel.profileViewModel.user {
+                            Text(user.name)
+                                .font(.headline)
+                            Text(user.email)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical)
+                }
+                
+                // Rest of the form sections...
+                Section {
+                    Button("Edit Profile") {
+                        showingEditProfile = true
+                    }
+                    .buttonStyle(.bordered)
+                }
+                
+                Section {
                     actionButtons
-                    
-                    // Stats
+                }
+                
+                Section {
                     statsView
-                    
-                    // Listed Properties
+                }
+                
+                Section {
                     listedPropertiesSection
                 }
-                .padding()
             }
             .navigationTitle("Profile")
             .toolbar {
@@ -84,37 +162,6 @@ struct ProfileView: View {
             } message: {
                 Text("Are you sure you want to sign out?")
             }
-        }
-    }
-    
-    private var profileHeader: some View {
-        VStack(spacing: 16) {
-            AsyncImage(url: URL(string: appViewModel.profileViewModel.user?.profileImageUrl ?? "")) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(.gray)
-            }
-            .frame(width: 100, height: 100)
-            .clipShape(Circle())
-            
-            VStack(spacing: 8) {
-                Text(appViewModel.profileViewModel.user?.name ?? "User")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text(appViewModel.profileViewModel.user?.email ?? "")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            Button("Edit Profile") {
-                showingEditProfile = true
-            }
-            .buttonStyle(.bordered)
         }
     }
     
@@ -230,46 +277,11 @@ struct EditProfileView: View {
         NavigationView {
             Form {
                 Section {
-                    HStack {
-                        Spacer()
-                        
-                        Button {
-                            showingImagePicker = true
-                        } label: {
-                            Group {
-                                if let imageData = selectedImageData {
-                                    #if os(iOS)
-                                    if let uiImage = UIImage(data: imageData) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                    }
-                                    #elseif os(macOS)
-                                    if let nsImage = NSImage(data: imageData) {
-                                        Image(nsImage: nsImage)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                    }
-                                    #endif
-                                } else {
-                                    AsyncImage(url: URL(string: appViewModel.profileViewModel.user?.profileImageUrl ?? "")) { image in
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                    } placeholder: {
-                                        Image(systemName: "person.circle.fill")
-                                            .font(.system(size: 80))
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                            }
-                            .frame(width: 100, height: 100)
-                            .clipShape(Circle())
-                        }
-                        
-                        Spacer()
-                    }
-                    .listRowBackground(Color(nsColor: .windowBackgroundColor))
+                    ProfileImageSection(
+                        selectedImageData: $selectedImageData,
+                        profileImageUrl: appViewModel.profileViewModel.user?.profileImageUrl,
+                        onImagePickerTap: { showingImagePicker = true }
+                    )
                 }
                 
                 Section(header: Text("Profile Information")) {
@@ -309,11 +321,70 @@ struct EditProfileView: View {
     }
 }
 
-struct ProfilePropertyCard: View {
+struct ProfileImageSection: View {
+    @Binding var selectedImageData: Data?
+    let profileImageUrl: String?
+    let onImagePickerTap: () -> Void
+    
+    var body: some View {
+        HStack {
+            Spacer()
+            
+            Button(action: onImagePickerTap) {
+                ProfileImage(
+                    imageData: selectedImageData,
+                    imageUrl: profileImageUrl
+                )
+            }
+            
+            Spacer()
+        }
+        .listRowBackground(Color.clear)
+    }
+}
+
+struct ProfileImage: View {
+    let imageData: Data?
+    let imageUrl: String?
+    
+    var body: some View {
+        Group {
+            if let imageData = imageData {
+                #if os(iOS)
+                if let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                }
+                #elseif os(macOS)
+                if let nsImage = NSImage(data: imageData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                }
+                #endif
+            } else {
+                AsyncImage(url: URL(string: imageUrl ?? "")) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .frame(width: 100, height: 100)
+        .clipShape(Circle())
+    }
+}
+
+struct PropertyListItem: View {
     let property: Property
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading) {
             // Property Image
             AsyncImage(url: URL(string: property.thumbnailUrl ?? "")) { image in
                 image
@@ -340,7 +411,7 @@ struct ProfilePropertyCard: View {
             }
         }
         .padding()
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(.background)
         .cornerRadius(12)
         .shadow(radius: 4)
     }
@@ -370,7 +441,7 @@ struct SettingsButton: View {
             }
             .padding()
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(.background)
     }
 }
 

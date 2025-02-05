@@ -146,8 +146,9 @@ struct PropertyDetailView: View {
         .sheet(isPresented: $showingVideo) {
             if !property.videoUrl.isEmpty, let videoURL = URL(string: property.videoUrl) {
                 #if os(iOS)
-                AVPlayerViewController(player: AVPlayer(url: videoURL))
-                    .ignoresSafeArea()
+                VideoPlayer(player: AVPlayer(url: videoURL))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .edgesIgnoringSafeArea(.all)
                 #else
                 VideoPlayer(player: AVPlayer(url: videoURL))
                     .frame(minHeight: 400)

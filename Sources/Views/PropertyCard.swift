@@ -92,7 +92,7 @@ public struct PropertyCard: View {
                 .padding(.horizontal, 4)
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(.background)
         .cornerRadius(12)
         .shadow(radius: 4)
     }

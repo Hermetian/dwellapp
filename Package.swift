@@ -9,6 +9,15 @@ let package = Package(
     ],
     products: [
         .library(
+            name: "Models",
+            targets: ["Models"]),
+        .library(
+            name: "Services",
+            targets: ["Services"]),
+        .library(
+            name: "ViewModels",
+            targets: ["ViewModels"]),
+        .library(
             name: "Views",
             targets: ["Views"])
     ],
@@ -22,7 +31,10 @@ let package = Package(
                 .product(name: "FirebaseFirestore", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseFirestoreSwift", package: "firebase-ios-sdk")
             ],
-            path: "Sources/Models"
+            path: "Sources/Models",
+            swiftSettings: [
+                .define("GRPC_BUILD_FROM_SOURCE")
+            ]
         ),
         .target(
             name: "Services",
@@ -32,7 +44,10 @@ let package = Package(
                 .product(name: "FirebaseFirestore", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseStorage", package: "firebase-ios-sdk")
             ],
-            path: "Sources/Services"
+            path: "Sources/Services",
+            swiftSettings: [
+                .define("GRPC_BUILD_FROM_SOURCE")
+            ]
         ),
         .target(
             name: "ViewModels",
@@ -53,6 +68,9 @@ let package = Package(
                 .product(name: "FirebaseStorage", package: "firebase-ios-sdk")
             ],
             path: "Sources/Views",
+            swiftSettings: [
+                .define("GRPC_BUILD_FROM_SOURCE")
+            ],
             linkerSettings: [
                 .linkedFramework("UIKit", .when(platforms: [.iOS])),
                 .linkedFramework("AppKit", .when(platforms: [.macOS]))
@@ -66,7 +84,10 @@ let package = Package(
                 "ViewModels",
                 "Views"
             ],
-            path: "Sources/App"
+            path: "Sources/App",
+            swiftSettings: [
+                .define("GRPC_BUILD_FROM_SOURCE")
+            ]
         ),
         .testTarget(
             name: "DwellTests",

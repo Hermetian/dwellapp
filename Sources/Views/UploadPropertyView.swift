@@ -174,8 +174,8 @@ struct UploadPropertyView: View {
         Group {
             if let videoURL = selectedVideoURL {
                 #if os(iOS)
-                AVPlayerViewController(player: AVPlayer(url: videoURL))
-                    .ignoresSafeArea()
+                VideoPlayer(player: AVPlayer(url: videoURL))
+                    .frame(height: 300)
                 #elseif os(macOS)
                 VideoPlayer(player: AVPlayer(url: videoURL))
                     .frame(height: 300)

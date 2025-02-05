@@ -1,5 +1,10 @@
 import SwiftUI
 import ViewModels
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct RoundedTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
@@ -7,7 +12,7 @@ struct RoundedTextFieldStyle: TextFieldStyle {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(nsColor: .textBackgroundColor))
+                    .fill(.background)
                     .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
             )
     }

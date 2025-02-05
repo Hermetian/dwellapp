@@ -198,8 +198,8 @@ public class PropertyViewModel: ObservableObject {
                              price: Double,
                              location: String,
                              videoURL: URL,
-                             bedrooms: Int = 0,
-                             bathrooms: Int = 0,
+                             bedrooms: Int,
+                             bathrooms: Int,
                              squareFootage: Double = 0,
                              availableFrom: Date = Date(),
                              amenities: [String: Bool]? = nil) async throws -> String {
@@ -212,11 +212,11 @@ public class PropertyViewModel: ObservableObject {
         do {
             // Process and upload video
             let compressedVideoURL = try await videoService.compressVideo(url: videoURL)
-            let videoUrl = try await storageService.uploadData(data: try Data(contentsOf: compressedVideoURL), path: "videos/\(UUID().uuidString).mp4")
+            let videoUrl = try await storageService.uploadData(try Data(contentsOf: compressedVideoURL), path: "videos/\(UUID().uuidString).mp4")
             
             // Generate and upload thumbnail
             let thumbnailImage = try await videoService.generateThumbnail(from: videoURL)
-            let thumbnailUrl = try await storageService.uploadData(data: thumbnailImage.jpegData(compressionQuality: 0.7)!, path: "thumbnails/\(UUID().uuidString).jpg")
+            let thumbnailUrl = try await storageService.uploadData(thumbnailImage.jpegData(compressionQuality: 0.7)!, path: "thumbnails/\(UUID().uuidString).jpg")
             
             // Create property
             let property = Property(
@@ -225,20 +225,22 @@ public class PropertyViewModel: ObservableObject {
                 description: description,
                 price: price,
                 address: location,
-                videoUrl: videoUrl,
-                thumbnailUrl: thumbnailUrl,
+                videoUrl: videoUrl.absoluteString,
+                thumbnailUrl: thumbnailUrl.absoluteString,
                 bedrooms: bedrooms,
-                bathrooms: bathrooms,
+                bathrooms: Double(bathrooms),
                 squareFootage: squareFootage,
                 availableFrom: availableFrom,
-                amenities: amenities
+                amenities: amenities,
+                type: "rental",
+                userId: managerId
             )
             
             // Save to database
             let _ = try await databaseService.createProperty(property)
             
             // Refresh properties
-            loadProperties()
+            try await loadProperties()
             
             isLoading = false
             return property.id ?? ""
