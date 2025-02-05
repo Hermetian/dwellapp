@@ -1,7 +1,20 @@
 import SwiftUI
+import ViewModels
+
+struct RoundedTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(nsColor: .textBackgroundColor))
+                    .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+            )
+    }
+}
 
 struct SignUpView: View {
-    @StateObject private var authViewModel = AuthViewModel()
+    @EnvironmentObject private var appViewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
     
     @State private var name = ""
@@ -40,24 +53,32 @@ struct SignUpView: View {
                     // Name field
                     TextField("Full Name", text: $name)
                         .textFieldStyle(RoundedTextFieldStyle())
+                        #if os(iOS)
                         .textContentType(.name)
+                        #endif
                     
                     // Email field
                     TextField("Email", text: $email)
                         .textFieldStyle(RoundedTextFieldStyle())
+                        #if os(iOS)
                         .textContentType(.emailAddress)
+                        .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
+                        #endif
                     
                     // Password field
                     SecureField("Password", text: $password)
                         .textFieldStyle(RoundedTextFieldStyle())
+                        #if os(iOS)
                         .textContentType(.newPassword)
+                        #endif
                     
                     // Confirm Password field
                     SecureField("Confirm Password", text: $confirmPassword)
                         .textFieldStyle(RoundedTextFieldStyle())
+                        #if os(iOS)
                         .textContentType(.newPassword)
+                        #endif
                     
                     // Password requirements
                     if !password.isEmpty {
@@ -67,38 +88,37 @@ struct SignUpView: View {
                                 isMet: password.count >= 8
                             )
                             PasswordRequirementView(
-                                text: "Passwords match",
-                                isMet: !confirmPassword.isEmpty && password == confirmPassword
+                                text: "Contains a number",
+                                isMet: password.contains { $0.isNumber }
                             )
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
                     }
                     
-                    // Terms and conditions
-                    HStack {
-                        Toggle("", isOn: $acceptedTerms)
-                            .labelsHidden()
-                        
-                        Button {
-                            showTerms = true
-                        } label: {
+                    // Terms and Conditions
+                    Toggle(isOn: $acceptedTerms) {
+                        Button(action: { showTerms = true }) {
                             Text("I accept the Terms and Conditions")
-                                .font(.footnote)
-                                .foregroundColor(.primary)
+                                .foregroundColor(.blue)
                         }
                     }
                     
                     // Sign up button
                     Button {
                         Task {
-                            await authViewModel.signUp(
-                                email: email,
-                                password: password,
-                                name: name
-                            )
+                            do {
+                                try await appViewModel.authViewModel.signUp(
+                                    email: email,
+                                    password: password,
+                                    name: name
+                                )
+                                dismiss()
+                            } catch {
+                                // Error is handled by the view model
+                            }
                         }
                     } label: {
-                        if authViewModel.isLoading {
+                        if appViewModel.authViewModel.isLoading {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle())
                         } else {
@@ -108,7 +128,7 @@ struct SignUpView: View {
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!isFormValid || authViewModel.isLoading)
+                    .disabled(!isFormValid || appViewModel.authViewModel.isLoading)
                     
                     // Back to login button
                     Button {
@@ -122,15 +142,30 @@ struct SignUpView: View {
                 .padding(.horizontal, 24)
             }
         }
-        .alert("Error", isPresented: .constant(authViewModel.error != nil)) {
+        .alert("Error", isPresented: $appViewModel.authViewModel.showError) {
             Button("OK") {
-                authViewModel.error = nil
+                appViewModel.authViewModel.clearError()
             }
         } message: {
-            Text(authViewModel.error?.localizedDescription ?? "")
+            Text(appViewModel.authViewModel.error?.localizedDescription ?? "")
         }
         .sheet(isPresented: $showTerms) {
             TermsView()
+        }
+        .toolbar {
+            #if os(iOS)
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+            #else
+            ToolbarItem(placement: .automatic) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+            #endif
         }
     }
 }
@@ -169,13 +204,28 @@ struct TermsView: View {
                 }
                 .padding()
             }
-            .navigationBarItems(trailing: Button("Done") {
-                dismiss()
-            })
+            .toolbar {
+                #if os(iOS)
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                #endif
+            }
         }
     }
 }
 
 #Preview {
-    SignUpView()
+    NavigationView {
+        SignUpView()
+            .environmentObject(AppViewModel())
+    }
 } 

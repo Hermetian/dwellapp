@@ -1,5 +1,7 @@
 #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 import FirebaseStorage
 import AVFoundation

@@ -22,9 +22,11 @@ struct ForgotPasswordView: View {
                 
                 TextField("Email", text: $email)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
+                    #endif
                     .padding(.horizontal)
                 
                 Button {
@@ -52,9 +54,13 @@ struct ForgotPasswordView: View {
                 Spacer()
             }
             .padding(.top, 50)
-            .navigationBarItems(leading: Button("Cancel") {
-                dismiss()
-            })
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
         }
         .alert(alertMessage, isPresented: $showAlert) {
             Button("OK") {

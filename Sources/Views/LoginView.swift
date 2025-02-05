@@ -1,4 +1,5 @@
 import SwiftUI
+import ViewModels
 
 struct LoginView: View {
     @StateObject private var authViewModel = AuthViewModel()
@@ -6,6 +7,8 @@ struct LoginView: View {
     @State private var password = ""
     @State private var showForgotPassword = false
     @State private var showSignUp = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
     
     var body: some View {
         NavigationView {
@@ -42,15 +45,19 @@ struct LoginView: View {
                         VStack(spacing: 16) {
                             // Email field
                             TextField("Email", text: $email)
-                                .textFieldStyle(RoundedTextFieldStyle())
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                #if os(iOS)
                                 .textContentType(.emailAddress)
+                                .textInputAutocapitalization(.never)
                                 .keyboardType(.emailAddress)
-                                .autocapitalization(.none)
+                                #endif
                             
                             // Password field
                             SecureField("Password", text: $password)
-                                .textFieldStyle(RoundedTextFieldStyle())
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                #if os(iOS)
                                 .textContentType(.password)
+                                #endif
                             
                             // Forgot password button
                             Button {
@@ -65,7 +72,12 @@ struct LoginView: View {
                             // Login button
                             Button {
                                 Task {
-                                    await authViewModel.signIn(email: email, password: password)
+                                    do {
+                                        try await authViewModel.signIn(email: email, password: password)
+                                    } catch {
+                                        alertMessage = error.localizedDescription
+                                        showAlert = true
+                                    }
                                 }
                             } label: {
                                 if authViewModel.isLoading {
@@ -93,12 +105,10 @@ struct LoginView: View {
                     }
                 }
             }
-            .alert("Error", isPresented: .constant(authViewModel.error != nil)) {
-                Button("OK") {
-                    authViewModel.error = nil
-                }
+            .alert("Error", isPresented: $showAlert) {
+                Button("OK") { }
             } message: {
-                Text(authViewModel.error?.localizedDescription ?? "")
+                Text(alertMessage)
             }
             .sheet(isPresented: $showForgotPassword) {
                 ForgotPasswordView()
@@ -107,17 +117,6 @@ struct LoginView: View {
                 SignUpView()
             }
         }
-    }
-}
-
-// Custom styles
-struct RoundedTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .padding()
-            .background(Color.white)
-            .cornerRadius(10)
-            .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
 }
 

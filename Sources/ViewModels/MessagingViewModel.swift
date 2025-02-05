@@ -11,19 +11,11 @@ public class MessagingViewModel: ObservableObject {
     @Published public var isLoading = false
     @Published public var error: Error?
     
-    private var databaseService: DatabaseService!
+    private let databaseService: DatabaseService
     private var cancellables = Set<AnyCancellable>()
     
-    public nonisolated init(databaseService: DatabaseService? = nil) {
-        if let databaseService = databaseService {
-            self.databaseService = databaseService
-        }
-        Task { @MainActor in
-            if self.databaseService == nil {
-                self.databaseService = DatabaseService()
-            }
-            self.setup()
-        }
+    public init(databaseService: DatabaseService? = nil) {
+        self.databaseService = databaseService ?? DatabaseService()
     }
     
     private func setup() {
@@ -33,7 +25,6 @@ public class MessagingViewModel: ObservableObject {
     }
     
     public func loadConversations(for userId: String) {
-        guard !isLoading else { return }
         isLoading = true
         error = nil
         
@@ -51,7 +42,6 @@ public class MessagingViewModel: ObservableObject {
     }
     
     public func loadMessages(for conversationId: String) {
-        guard !isLoading else { return }
         isLoading = true
         error = nil
         
@@ -63,20 +53,17 @@ public class MessagingViewModel: ObservableObject {
                     self?.error = error
                 }
             } receiveValue: { [weak self] messages in
-                self?.messages = messages
+                self?.messages = messages.sorted { $0.timestamp < $1.timestamp }
             }
             .store(in: &cancellables)
     }
     
-    public func sendMessage(content: String, conversationId: String, senderId: String) async {
-        guard !isLoading else { return }
-        isLoading = true
-        error = nil
-        
+    public func sendMessage(_ text: String, in conversationId: String, from userId: String) async throws {
         let message = Message(
+            id: UUID().uuidString,
             conversationId: conversationId,
-            senderId: senderId,
-            content: content,
+            senderId: userId,
+            text: text,
             timestamp: Date(),
             isRead: false
         )
@@ -85,34 +72,25 @@ public class MessagingViewModel: ObservableObject {
             try await databaseService.sendMessage(message)
         } catch {
             self.error = error
+            throw error
         }
-        
-        isLoading = false
     }
     
-    public func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async -> String? {
-        guard !isLoading else { return nil }
-        isLoading = true
-        error = nil
-        
+    public func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async throws -> String {
         do {
-            let conversationId = try await databaseService.createOrGetConversation(
-                propertyId: propertyId,
-                tenantId: tenantId,
-                managerId: managerId
-            )
-            return conversationId
+            return try await databaseService.createOrGetConversation(propertyId: propertyId, tenantId: tenantId, managerId: managerId)
         } catch {
             self.error = error
-            return nil
+            throw error
         }
     }
     
-    public func markConversationAsRead(_ conversationId: String) async {
+    public func markConversationAsRead(_ conversationId: String) async throws {
         do {
             try await databaseService.markConversationAsRead(conversationId: conversationId)
         } catch {
             self.error = error
+            throw error
         }
     }
 } 

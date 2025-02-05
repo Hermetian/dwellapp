@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import AVKit
 import Models
 import ViewModels
 
@@ -21,8 +22,10 @@ struct UploadPropertyView: View {
     @State private var selectedAmenities: Set<String> = []
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @State private var propertyType = "Apartment"
     
     let amenitiesList = ["Parking", "Pool", "Gym", "Elevator", "Security", "Furnished", "Pets Allowed", "Laundry"]
+    let propertyTypes = ["Apartment", "House", "Condo", "Townhouse"]
     
     var isFormValid: Bool {
         !title.isEmpty && !description.isEmpty && !price.isEmpty &&
@@ -33,18 +36,38 @@ struct UploadPropertyView: View {
         Form {
             Section(header: Text("Basic Information")) {
                 TextField("Title", text: $title)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
+                    .textInputAutocapitalization(.words)
+                    #endif
                 TextField("Description", text: $description, axis: .vertical)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
                     .lineLimit(3...6)
-                TextField("Price per month", text: $price)
+                TextField("Price", text: $price)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
                     .keyboardType(.decimalPad)
+                    #endif
                 TextField("Address", text: $address)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
+                    .textInputAutocapitalization(.words)
+                    #endif
+                Picker("Property Type", selection: $propertyType) {
+                    ForEach(propertyTypes, id: \.self) { type in
+                        Text(type).tag(type)
+                    }
+                }
             }
             
             Section(header: Text("Specifications")) {
                 Stepper("Bedrooms: \(bedrooms)", value: $bedrooms, in: 1...10)
                 Stepper("Bathrooms: \(bathrooms)", value: $bathrooms, in: 1...10)
                 TextField("Square Footage", text: $squareFootage)
-                    .keyboardType(.numberPad)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
+                    .keyboardType(.decimalPad)
+                    #endif
                 DatePicker("Available From", selection: $availableDate, displayedComponents: .date)
             }
             
@@ -80,15 +103,19 @@ struct UploadPropertyView: View {
             }
         }
         .navigationTitle("List Property")
-        .navigationBarItems(
-            leading: Button("Cancel") {
-                dismiss()
-            },
-            trailing: Button("Post") {
-                uploadProperty()
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
             }
-            .disabled(!isFormValid)
-        )
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Post") {
+                    uploadProperty()
+                }
+                .disabled(!isFormValid)
+            }
+        }
         .onChange(of: selectedVideo) { _ in
             Task {
                 if let video = selectedVideo,
@@ -102,51 +129,58 @@ struct UploadPropertyView: View {
             }
         }
         .sheet(isPresented: $showVideoPlayer) {
-            if let videoURL = selectedVideoURL {
-                VideoPlayer(player: AVPlayer(url: videoURL))
-                    .ignoresSafeArea()
-            }
+            videoPreviewView
         }
-        .alert("Upload Status", isPresented: $showAlert) {
+        .alert(alertMessage, isPresented: $showAlert) {
             Button("OK") {
                 if !alertMessage.contains("Error") {
                     dismiss()
                 }
             }
-        } message: {
-            Text(alertMessage)
         }
     }
     
     private func uploadProperty() {
-        guard let userId = appViewModel.authViewModel.currentUser?.id,
-              let videoURL = selectedVideoURL else { return }
+        guard let userId = appViewModel.authViewModel.currentUser?.id else { return }
         
-        // Convert amenities Set to Dictionary
-        let amenitiesDict = Dictionary(uniqueKeysWithValues: 
-            selectedAmenities.map { ($0, true) }
+        let property = Property(
+            managerId: userId,
+            title: title,
+            description: description,
+            price: Double(price) ?? 0,
+            address: address,
+            videoUrl: "",  // Will be updated after video upload
+            bedrooms: bedrooms,
+            bathrooms: Double(bathrooms),
+            squareFootage: Double(squareFootage) ?? 0,
+            availableFrom: availableDate,
+            type: propertyType,
+            userId: userId
         )
         
         Task {
             do {
-                await appViewModel.propertyViewModel.uploadProperty(
-                    title: title,
-                    description: description,
-                    price: Double(price) ?? 0,
-                    address: address,
-                    videoURL: videoURL,
-                    bedrooms: bedrooms,
-                    bathrooms: bathrooms,
-                    squareFootage: Double(squareFootage) ?? 0,
-                    availableFrom: availableDate,
-                    managerId: userId,
-                    amenities: amenitiesDict
-                )
+                try await appViewModel.propertyViewModel.createProperty(property)
                 alertMessage = "Property listed successfully!"
+                showAlert = true
             } catch {
                 alertMessage = "Error: \(error.localizedDescription)"
+                showAlert = true
             }
-            showAlert = true
+        }
+    }
+    
+    private var videoPreviewView: some View {
+        Group {
+            if let videoURL = selectedVideoURL {
+                #if os(iOS)
+                AVPlayerViewController(player: AVPlayer(url: videoURL))
+                    .ignoresSafeArea()
+                #elseif os(macOS)
+                VideoPlayer(player: AVPlayer(url: videoURL))
+                    .frame(height: 300)
+                #endif
+            }
         }
     }
 }

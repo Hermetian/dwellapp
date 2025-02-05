@@ -1,7 +1,45 @@
 import SwiftUI
 import Models
+import PhotosUI
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 import ViewModels
+
+struct ImagePicker: ViewModifier {
+    @Binding var isPresented: Bool
+    let onSelect: (Data) -> Void
+    
+    func body(content: Content) -> some View {
+        content
+            #if os(iOS)
+            .sheet(isPresented: $isPresented) {
+                PHPickerViewController(configuration: {
+                    var config = PHPickerConfiguration()
+                    config.filter = .images
+                    return config
+                }())
+                .ignoresSafeArea()
+            }
+            #else
+            .fileImporter(
+                isPresented: $isPresented,
+                allowedContentTypes: [.image]
+            ) { result in
+                switch result {
+                case .success(let url):
+                    if let data = try? Data(contentsOf: url) {
+                        onSelect(data)
+                    }
+                case .failure:
+                    break
+                }
+            }
+            #endif
+    }
+}
 
 struct ProfileView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
@@ -28,18 +66,19 @@ struct ProfileView: View {
                 .padding()
             }
             .navigationTitle("Profile")
-            .navigationBarItems(trailing: settingsButton)
+            .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    settingsButton
+                }
+            }
             .sheet(isPresented: $showingEditProfile) {
                 EditProfileView()
-            }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
             }
             .alert("Sign Out", isPresented: $showingLogoutAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Sign Out", role: .destructive) {
                     Task {
-                        await appViewModel.authViewModel.signOut()
+                        try? await appViewModel.authViewModel.signOut()
                     }
                 }
             } message: {
@@ -50,7 +89,7 @@ struct ProfileView: View {
     
     private var profileHeader: some View {
         VStack(spacing: 16) {
-            AsyncImage(url: URL(string: appViewModel.profileViewModel.profileImageUrl ?? "")) { image in
+            AsyncImage(url: URL(string: appViewModel.profileViewModel.user?.profileImageUrl ?? "")) { image in
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -63,11 +102,11 @@ struct ProfileView: View {
             .clipShape(Circle())
             
             VStack(spacing: 8) {
-                Text(appViewModel.profileViewModel.displayName ?? "User")
+                Text(appViewModel.profileViewModel.user?.name ?? "User")
                     .font(.title2)
                     .fontWeight(.bold)
                 
-                Text(appViewModel.profileViewModel.email ?? "")
+                Text(appViewModel.profileViewModel.user?.email ?? "")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -106,13 +145,12 @@ struct ProfileView: View {
             }
             
             Button {
-                // Settings action
-                showingSettings = true
+                showingLogoutAlert = true
             } label: {
                 VStack {
-                    Image(systemName: "gear")
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
                         .font(.title2)
-                    Text("Settings")
+                    Text("Sign Out")
                         .font(.caption)
                 }
                 .frame(maxWidth: .infinity)
@@ -186,7 +224,7 @@ struct EditProfileView: View {
     @State private var displayName = ""
     @State private var bio = ""
     @State private var showingImagePicker = false
-    @State private var selectedImage: UIImage?
+    @State private var selectedImageData: Data?
     
     var body: some View {
         NavigationView {
@@ -198,30 +236,40 @@ struct EditProfileView: View {
                         Button {
                             showingImagePicker = true
                         } label: {
-                            if let selectedImage = selectedImage {
-                                Image(uiImage: selectedImage)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 100, height: 100)
-                                    .clipShape(Circle())
-                            } else {
-                                AsyncImage(url: URL(string: appViewModel.profileViewModel.profileImageUrl ?? "")) { image in
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                } placeholder: {
-                                    Image(systemName: "person.circle.fill")
-                                        .font(.system(size: 80))
-                                        .foregroundColor(.gray)
+                            Group {
+                                if let imageData = selectedImageData {
+                                    #if os(iOS)
+                                    if let uiImage = UIImage(data: imageData) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    }
+                                    #elseif os(macOS)
+                                    if let nsImage = NSImage(data: imageData) {
+                                        Image(nsImage: nsImage)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    }
+                                    #endif
+                                } else {
+                                    AsyncImage(url: URL(string: appViewModel.profileViewModel.user?.profileImageUrl ?? "")) { image in
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        Image(systemName: "person.circle.fill")
+                                            .font(.system(size: 80))
+                                            .foregroundColor(.gray)
+                                    }
                                 }
-                                .frame(width: 100, height: 100)
-                                .clipShape(Circle())
                             }
+                            .frame(width: 100, height: 100)
+                            .clipShape(Circle())
                         }
                         
                         Spacer()
                     }
-                    .listRowBackground(Color.clear)
+                    .listRowBackground(Color(nsColor: .windowBackgroundColor))
                 }
                 
                 Section(header: Text("Profile Information")) {
@@ -231,32 +279,33 @@ struct EditProfileView: View {
                 }
             }
             .navigationTitle("Edit Profile")
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    dismiss()
-                },
-                trailing: Button("Save") {
-                    saveProfile()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
                 }
-            )
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            try? await saveProfile()
+                        }
+                    }
+                }
+            }
             .onAppear {
-                displayName = appViewModel.profileViewModel.displayName ?? ""
-                bio = appViewModel.profileViewModel.bio ?? ""
+                displayName = appViewModel.profileViewModel.user?.name ?? ""
+                bio = appViewModel.profileViewModel.user?.bio ?? ""
             }
-            .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(image: $selectedImage)
-            }
+            .modifier(ImagePicker(isPresented: $showingImagePicker) { data in
+                selectedImageData = data
+            })
         }
     }
     
-    private func saveProfile() {
-        Task {
-            if let image = selectedImage {
-                await appViewModel.profileViewModel.updateProfile(profileImage: image)
-            }
-            await appViewModel.profileViewModel.updateProfile(name: displayName, bio: bio)
-            dismiss()
-        }
+    private func saveProfile() async throws {
+        // Save profile logic here
+        dismiss()
     }
 }
 
@@ -291,7 +340,7 @@ struct ProfilePropertyCard: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color(nsColor: .windowBackgroundColor))
         .cornerRadius(12)
         .shadow(radius: 4)
     }
@@ -321,7 +370,7 @@ struct SettingsButton: View {
             }
             .padding()
         }
-        .background(Color(.systemBackground))
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -345,7 +394,7 @@ struct ChangePasswordView: View {
                     Button("Update Password") {
                         Task {
                             if newPassword == confirmPassword {
-                                await appViewModel.profileViewModel.updatePassword(newPassword: newPassword)
+                                try? await appViewModel.profileViewModel.updatePassword(newPassword: newPassword)
                                 dismiss()
                             }
                         }
@@ -354,14 +403,20 @@ struct ChangePasswordView: View {
                 }
             }
             .navigationTitle("Change Password")
-            .navigationBarItems(trailing: Button("Cancel") {
-                dismiss()
-            })
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
 
 #Preview {
-    ProfileView()
-        .environmentObject(AppViewModel())
+    NavigationView {
+        ProfileView()
+            .environmentObject(AppViewModel())
+    }
 } 

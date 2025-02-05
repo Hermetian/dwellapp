@@ -11,7 +11,7 @@ public struct Property: Identifiable, Codable {
     public let videoUrl: String
     public var thumbnailUrl: String?
     public let bedrooms: Int
-    public let bathrooms: Int
+    public let bathrooms: Double
     public let squareFootage: Double
     public var viewCount: Int
     public var favoriteCount: Int
@@ -21,6 +21,8 @@ public struct Property: Identifiable, Codable {
     @ServerTimestamp public var serverTimestamp: Timestamp?
     public var amenities: [String: Bool]?
     public var imageUrl: String?
+    public let type: String
+    public let userId: String
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -42,6 +44,8 @@ public struct Property: Identifiable, Codable {
         case serverTimestamp
         case amenities
         case imageUrl
+        case type
+        case userId
     }
     
     public init(id: String? = nil,
@@ -53,7 +57,7 @@ public struct Property: Identifiable, Codable {
          videoUrl: String,
          thumbnailUrl: String? = nil,
          bedrooms: Int,
-         bathrooms: Int,
+         bathrooms: Double,
          squareFootage: Double,
          viewCount: Int = 0,
          favoriteCount: Int = 0,
@@ -62,7 +66,9 @@ public struct Property: Identifiable, Codable {
          updatedAt: Date = Date(),
          serverTimestamp: Timestamp? = nil,
          amenities: [String: Bool]? = nil,
-         imageUrl: String? = nil) {
+         imageUrl: String? = nil,
+         type: String,
+         userId: String) {
         self.id = id
         self.managerId = managerId
         self.title = title
@@ -82,6 +88,8 @@ public struct Property: Identifiable, Codable {
         self.serverTimestamp = serverTimestamp
         self.amenities = amenities
         self.imageUrl = imageUrl
+        self.type = type
+        self.userId = userId
     }
     
     public init(from decoder: Decoder) throws {
@@ -95,7 +103,7 @@ public struct Property: Identifiable, Codable {
         videoUrl = try container.decode(String.self, forKey: .videoUrl)
         thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)
         bedrooms = try container.decode(Int.self, forKey: .bedrooms)
-        bathrooms = try container.decode(Int.self, forKey: .bathrooms)
+        bathrooms = try container.decode(Double.self, forKey: .bathrooms)
         squareFootage = try container.decode(Double.self, forKey: .squareFootage)
         viewCount = try container.decode(Int.self, forKey: .viewCount)
         favoriteCount = try container.decode(Int.self, forKey: .favoriteCount)
@@ -105,6 +113,8 @@ public struct Property: Identifiable, Codable {
         serverTimestamp = try container.decodeIfPresent(Timestamp.self, forKey: .serverTimestamp)
         amenities = try container.decodeIfPresent([String: Bool].self, forKey: .amenities)
         imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
+        type = try container.decode(String.self, forKey: .type)
+        userId = try container.decode(String.self, forKey: .userId)
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -128,5 +138,7 @@ public struct Property: Identifiable, Codable {
         try container.encodeIfPresent(serverTimestamp, forKey: .serverTimestamp)
         try container.encodeIfPresent(amenities, forKey: .amenities)
         try container.encodeIfPresent(imageUrl, forKey: .imageUrl)
+        try container.encode(type, forKey: .type)
+        try container.encode(userId, forKey: .userId)
     }
 } 

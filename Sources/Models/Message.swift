@@ -1,11 +1,12 @@
 import FirebaseFirestore
 import FirebaseFirestoreSwift
+import Foundation
 
 public struct Message: Identifiable, Codable {
-    @DocumentID public var id: String?
+    public let id: String
     public let conversationId: String
     public let senderId: String
-    public let content: String
+    public let text: String
     public let timestamp: Date
     @ServerTimestamp public var serverTimestamp: Timestamp?
     public var isRead: Bool
@@ -13,11 +14,11 @@ public struct Message: Identifiable, Codable {
     public var attachmentType: String?
     
     public init(
-        id: String? = nil,
+        id: String,
         conversationId: String,
         senderId: String,
-        content: String,
-        timestamp: Date = Date(),
+        text: String,
+        timestamp: Date,
         serverTimestamp: Timestamp? = nil,
         isRead: Bool = false,
         attachmentUrl: String? = nil,
@@ -26,7 +27,7 @@ public struct Message: Identifiable, Codable {
         self.id = id
         self.conversationId = conversationId
         self.senderId = senderId
-        self.content = content
+        self.text = text
         self.timestamp = timestamp
         self.serverTimestamp = serverTimestamp
         self.isRead = isRead
@@ -38,7 +39,7 @@ public struct Message: Identifiable, Codable {
         case id
         case conversationId
         case senderId
-        case content
+        case text
         case timestamp
         case serverTimestamp
         case isRead

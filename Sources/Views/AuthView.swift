@@ -1,6 +1,8 @@
 import SwiftUI
+import Services
+import ViewModels
 
-struct AuthView: View {
+public struct AuthView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var email = ""
     @State private var password = ""
@@ -10,7 +12,7 @@ struct AuthView: View {
     @State private var alertMessage = ""
     @State private var showForgotPassword = false
     
-    var body: some View {
+    public var body: some View {
         NavigationView {
             VStack(spacing: 20) {
                 // Logo and Title
@@ -28,82 +30,94 @@ struct AuthView: View {
                     if isSignUp {
                         TextField("Name", text: $name)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .autocapitalization(.words)
+                            #if os(iOS)
+                            .textContentType(.name)
+                            #endif
                     }
                     
                     TextField("Email", text: $email)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .autocapitalization(.none)
+                        #if os(iOS)
+                        .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        #endif
                     
                     SecureField("Password", text: $password)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
+                        #if os(iOS)
+                        .textContentType(isSignUp ? .newPassword : .password)
+                        #endif
                 }
                 .padding(.horizontal)
                 
-                // Sign In/Up Button
-                Button(action: {
-                    Task {
-                        do {
-                            if isSignUp {
-                                try await appViewModel.authViewModel.signUp(email: email, password: password, name: name)
-                            } else {
-                                try await appViewModel.authViewModel.signIn(email: email, password: password)
-                            }
-                        } catch {
-                            alertMessage = error.localizedDescription
-                            showAlert = true
+                // Action Buttons
+                VStack(spacing: 12) {
+                    Button(action: handleSubmit) {
+                        if appViewModel.authViewModel.isLoading {
+                            ProgressView()
+                        } else {
+                            Text(isSignUp ? "Sign Up" : "Sign In")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .cornerRadius(10)
                         }
                     }
-                }) {
-                    if appViewModel.authViewModel.isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    } else {
-                        Text(isSignUp ? "Sign Up" : "Sign In")
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
+                    .disabled(!isFormValid || appViewModel.authViewModel.isLoading)
+                    
+                    Button(action: { isSignUp.toggle() }) {
+                        Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
+                            .foregroundColor(.blue)
                     }
-                }
-                .background(Color.blue)
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .disabled(appViewModel.authViewModel.isLoading)
-                
-                // Toggle Sign In/Up
-                Button(action: {
-                    isSignUp.toggle()
-                    email = ""
-                    password = ""
-                    name = ""
-                }) {
-                    Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
+                    
+                    if !isSignUp {
+                        Button("Forgot Password?") {
+                            showForgotPassword = true
+                        }
                         .foregroundColor(.blue)
-                }
-                
-                // Forgot Password
-                if !isSignUp {
-                    Button("Forgot Password?") {
-                        showForgotPassword = true
                     }
-                    .foregroundColor(.gray)
                 }
+                .padding(.horizontal)
             }
-            .padding()
-            .alert(isPresented: $showAlert) {
-                Alert(
-                    title: Text("Error"),
-                    message: Text(alertMessage),
-                    dismissButton: .default(Text("OK"))
-                )
-            }
-            .sheet(isPresented: $showForgotPassword) {
-                ForgotPasswordView()
+            .padding(.vertical)
+        }
+        .alert("Error", isPresented: $showAlert) {
+            Button("OK") { }
+        } message: {
+            Text(alertMessage)
+        }
+        .sheet(isPresented: $showForgotPassword) {
+            ForgotPasswordView()
+        }
+    }
+    
+    private var isFormValid: Bool {
+        if isSignUp {
+            return !email.isEmpty && !password.isEmpty && !name.isEmpty
+        } else {
+            return !email.isEmpty && !password.isEmpty
+        }
+    }
+    
+    private func handleSubmit() {
+        Task {
+            do {
+                if isSignUp {
+                    try await appViewModel.authViewModel.signUp(email: email, password: password, name: name)
+                } else {
+                    try await appViewModel.authViewModel.signIn(email: email, password: password)
+                }
+            } catch {
+                alertMessage = error.localizedDescription
+                showAlert = true
             }
         }
     }
+    
+    public init() {}
 }
 
 #Preview {

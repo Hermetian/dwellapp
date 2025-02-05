@@ -4,49 +4,59 @@ import ViewModels
 
 struct FeedView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
+    @State private var searchText = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 20) {
-                ForEach(appViewModel.propertyViewModel.properties) { property in
-                    PropertyCard(
-                        property: property,
-                        onLike: {
-                            if let userId = appViewModel.authViewModel.currentUser?.id {
-                                Task {
-                                    await appViewModel.propertyViewModel.toggleFavorite(propertyId: property.id ?? "", userId: userId)
-                                }
-                            }
-                        },
-                        onShare: {
-                            // Share functionality
-                        },
-                        onContact: {
-                            // Contact functionality
+        NavigationView {
+            ScrollView {
+                LazyVStack(spacing: 20) {
+                    ForEach(filteredProperties) { property in
+                        NavigationLink {
+                            PropertyDetailView(property: property)
+                        } label: {
+                            PropertyCard(property: property)
                         }
-                    )
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
-                
-                if appViewModel.propertyViewModel.hasMoreProperties {
-                    ProgressView()
-                        .onAppear {
-                            Task {
-                                await appViewModel.propertyViewModel.loadProperties()
-                            }
-                        }
+                .padding()
+            }
+            .navigationTitle("Properties")
+            .searchable(text: $searchText)
+            .refreshable {
+                do {
+                    try await appViewModel.propertyViewModel.loadProperties()
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showError = true
                 }
             }
-            .padding()
         }
-        .navigationTitle("DwellApp")
-        .onAppear {
-            Task {
-                await appViewModel.propertyViewModel.loadProperties()
+        .alert("Error", isPresented: $showError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage)
+        }
+        .task {
+            do {
+                try await appViewModel.propertyViewModel.loadProperties()
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
             }
         }
-        .refreshable {
-            Task {
-                await appViewModel.propertyViewModel.resetProperties()
+    }
+    
+    private var filteredProperties: [Property] {
+        if searchText.isEmpty {
+            return appViewModel.propertyViewModel.properties
+        } else {
+            return appViewModel.propertyViewModel.properties.filter { property in
+                property.title.localizedCaseInsensitiveContains(searchText) ||
+                property.description.localizedCaseInsensitiveContains(searchText) ||
+                property.address.localizedCaseInsensitiveContains(searchText)
             }
         }
     }

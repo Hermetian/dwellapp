@@ -116,7 +116,7 @@ public class AuthService: ObservableObject {
     }
 }
 
-enum AuthError: LocalizedError {
+public enum AuthError: LocalizedError {
     case signInError(String)
     case signUpError(String)
     case signOutError(String)
@@ -125,7 +125,7 @@ enum AuthError: LocalizedError {
     case deleteAccountError(String)
     case userNotFound
     
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .signInError(let message):
             return "Sign in failed: \(message)"

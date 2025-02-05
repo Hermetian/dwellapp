@@ -3,85 +3,58 @@ import Models
 import ViewModels
 
 struct SearchView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appViewModel: AppViewModel
-    @State private var searchText = ""
     @State private var showFilters = false
     @State private var selectedPropertyType = "Any"
-    @State private var priceRange = 0.0...5000000.0
+    @State private var priceRange: ClosedRange<Double> = 0...5000000
     @State private var selectedBedrooms = "Any"
     @State private var selectedBathrooms = "Any"
     @State private var selectedAmenities: Set<String> = []
     
-    let propertyTypes = ["Any", "House", "Apartment", "Condo", "Townhouse"]
+    let propertyTypes = ["Any", "Apartment", "House", "Condo", "Townhouse"]
     let bedroomOptions = ["Any", "1", "2", "3", "4+"]
     let bathroomOptions = ["Any", "1", "1.5", "2", "2.5", "3+"]
     let amenitiesList = ["Parking", "Pool", "Gym", "Elevator", "Security", "Furnished", "Pets Allowed", "Laundry"]
     
-    var filteredProperties: [Property] {
+    private var filteredProperties: [Property] {
         appViewModel.propertyViewModel.properties.filter { property in
-            // Property Type Filter
-            let typeMatches = selectedPropertyType == "Any" || property.type == selectedPropertyType
+            var matches = true
             
-            // Price Filter
-            let priceInRange = priceRange.contains(property.price)
-            
-            // Bedrooms Filter
-            let bedroomsMatch: Bool
-            if selectedBedrooms == "Any" {
-                bedroomsMatch = true
-            } else if selectedBedrooms.hasSuffix("+") {
-                let minBedrooms = Int(selectedBedrooms.dropLast()) ?? 0
-                bedroomsMatch = property.bedrooms >= minBedrooms
-            } else {
-                bedroomsMatch = property.bedrooms == Int(selectedBedrooms) ?? 0
+            // Filter by property type
+            if selectedPropertyType != "Any" {
+                matches = matches && property.type == selectedPropertyType
             }
             
-            // Bathrooms Filter
-            let bathroomsMatch: Bool
-            if selectedBathrooms == "Any" {
-                bathroomsMatch = true
-            } else if selectedBathrooms.hasSuffix("+") {
-                let minBathrooms = Double(selectedBathrooms.dropLast()) ?? 0
-                bathroomsMatch = property.bathrooms >= minBathrooms
-            } else {
-                bathroomsMatch = property.bathrooms == Double(selectedBathrooms) ?? 0
+            // Filter by price
+            matches = matches && (property.price >= priceRange.lowerBound && property.price <= priceRange.upperBound)
+            
+            // Filter by bedrooms
+            if selectedBedrooms != "Any" {
+                let requiredBedrooms = selectedBedrooms == "4+" ? 4 : Int(selectedBedrooms) ?? 0
+                matches = matches && (selectedBedrooms == "4+" ? property.bedrooms >= requiredBedrooms : property.bedrooms == requiredBedrooms)
             }
             
-            // Amenities Filter (ANY match)
-            let amenitiesMatch = selectedAmenities.isEmpty || 
-                selectedAmenities.contains { amenity in
+            // Filter by bathrooms
+            if selectedBathrooms != "Any" {
+                let requiredBathrooms = selectedBathrooms == "3+" ? 3 : Double(selectedBathrooms) ?? 0
+                matches = matches && (selectedBathrooms == "3+" ? property.bathrooms >= requiredBathrooms : property.bathrooms == requiredBathrooms)
+            }
+            
+            // Filter by amenities
+            if !selectedAmenities.isEmpty {
+                matches = matches && selectedAmenities.allSatisfy { amenity in
                     property.amenities?[amenity] == true
                 }
+            }
             
-            return typeMatches && priceInRange && bedroomsMatch && bathroomsMatch && amenitiesMatch
+            return matches
         }
     }
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Search Bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.gray)
-                    
-                    TextField("Search properties...", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                    
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.gray)
-                        }
-                    }
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(10)
-                .padding()
-                
+            VStack {
                 // Filter Button
                 Button {
                     showFilters = true
@@ -142,10 +115,26 @@ struct SearchView: View {
                     selectedAmenities: $selectedAmenities
                 )
             }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            #if os(macOS)
+            .background(Color(nsColor: .windowBackgroundColor))
+            #else
+            .background(Color(.systemBackground))
+            #endif
         }
         .onAppear {
             Task {
-                await appViewModel.propertyViewModel.loadProperties()
+                do {
+                    try await appViewModel.propertyViewModel.loadProperties()
+                } catch {
+                    // Handle error if needed
+                }
             }
         }
     }
@@ -177,7 +166,7 @@ struct FilterView: View {
                 }
                 
                 Section(header: Text("Price Range")) {
-                    PriceRangeSlider(range: $priceRange)
+                    PriceRangeSlider(value: $priceRange, in: 0...5000000)
                 }
                 
                 Section(header: Text("Bedrooms")) {
@@ -225,37 +214,50 @@ struct FilterView: View {
                 }
             }
             .navigationTitle("Filters")
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    dismiss()
-                },
-                trailing: Button("Apply") {
-                    dismiss()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
                 }
-            )
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
 
 struct PriceRangeSlider: View {
-    @Binding var range: ClosedRange<Double>
+    @Binding var value: ClosedRange<Double>
+    let bounds: ClosedRange<Double>
     
     var body: some View {
         VStack {
             HStack {
-                Text("$\(Int(range.lowerBound))")
+                Text("$\(Int(value.lowerBound))")
                 Spacer()
-                Text("$\(Int(range.upperBound))")
+                Text("$\(Int(value.upperBound))")
             }
             .font(.caption)
+            .foregroundColor(.secondary)
             
-            RangeSlider(value: $range, in: 0...5000000)
-                .padding(.vertical)
+            RangeSlider(value: $value, in: bounds)
+                .frame(height: 30)
         }
+    }
+    
+    init(value: Binding<ClosedRange<Double>>, in bounds: ClosedRange<Double>) {
+        self._value = value
+        self.bounds = bounds
     }
 }
 
 #Preview {
-    SearchView()
-        .environmentObject(AppViewModel())
+    NavigationView {
+        SearchView()
+            .environmentObject(AppViewModel())
+    }
 } 

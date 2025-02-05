@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseCore
 import ViewModels
+import Views
 
 @main
 struct DwellApp: App {
@@ -12,11 +13,11 @@ struct DwellApp: App {
     
     var body: some Scene {
         WindowGroup {
-            if appViewModel.isAuthenticated {
+            if appViewModel.authViewModel.isAuthenticated {
                 MainTabView()
                     .environmentObject(appViewModel)
             } else {
-                SignUpView()
+                AuthView()
                     .environmentObject(appViewModel)
             }
         }

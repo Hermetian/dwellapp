@@ -34,7 +34,7 @@ public class DatabaseService: ObservableObject {
         return docRef.documentID
     }
     
-    func getProperty(id: String) async throws -> Property {
+    public func getProperty(id: String) async throws -> Property {
         let docRef = db.collection("properties").document(id)
         let snapshot = try await docRef.getDocument()
         
@@ -215,38 +215,38 @@ public class DatabaseService: ObservableObject {
     
     // MARK: - Messages
     
+    @MainActor
     public func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async throws -> String {
-        let query = db.collection("conversations")
+        // Check if conversation already exists
+        let querySnapshot = try await db.collection("conversations")
             .whereField("propertyId", isEqualTo: propertyId)
-            .whereField("tenantId", isEqualTo: tenantId)
-            .whereField("managerId", isEqualTo: managerId)
-            .limit(to: 1)
+            .whereField("participants", arrayContainsAny: [tenantId, managerId])
+            .getDocuments()
         
-        let snapshot = try await query.getDocuments()
-        
-        if let existingDoc = snapshot.documents.first {
+        if let existingDoc = querySnapshot.documents.first {
             return existingDoc.documentID
         }
         
-        let conversation = Conversation(propertyId: propertyId,
-                                     tenantId: tenantId,
-                                     managerId: managerId)
-        
-        let docRef = db.collection("conversations").document()
-        try docRef.setData(from: conversation)
-        return docRef.documentID
+        // Create new conversation
+        let conversation = Conversation.create(propertyId: propertyId, tenantId: tenantId, managerId: managerId)
+        let docRef = db.collection("conversations").document(conversation.id)
+        try await docRef.setData(from: conversation)
+        return conversation.id
     }
     
+    @MainActor
     public func sendMessage(_ message: Message) async throws {
         let batch = db.batch()
         
-        let messageRef = db.collection("messages").document()
+        // Add message
+        let messageRef = db.collection("messages").document(message.id)
         try batch.setData(from: message, forDocument: messageRef)
         
+        // Update conversation
         let conversationRef = db.collection("conversations").document(message.conversationId)
         batch.updateData([
-            "lastMessageContent": message.content,
-            "lastMessageAt": message.timestamp,
+            "lastMessage": message.text,
+            "lastMessageTimestamp": message.timestamp,
             "hasUnreadMessages": true
         ], forDocument: conversationRef)
         
@@ -318,9 +318,9 @@ public class DatabaseService: ObservableObject {
         .eraseToAnyPublisher()
     }
     
+    @MainActor
     public func markConversationAsRead(conversationId: String) async throws {
         let ref = db.collection("conversations").document(conversationId)
-        let data = ["hasUnreadMessages": false] as [String: Any]
-        try await ref.updateData(data)
+        try await ref.updateData(["hasUnreadMessages": false])
     }
 } 

@@ -31,6 +31,7 @@ GoogleService-Info.plist
 *.suo
 *.user
 *.sln.docstates
+Dwell.xcodeproj/xcshareddata/xcschemes/Dwell.xcscheme
 
 # Compiled files
 *.class

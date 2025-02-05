@@ -2,28 +2,20 @@
 import PackageDescription
 
 let package = Package(
-    name: "DwellCore",
+    name: "Dwell",
     platforms: [
         .iOS(.v16),
         .macOS(.v13)
     ],
     products: [
         .library(
-            name: "DwellCore",
-            targets: ["DwellCore"])
+            name: "Views",
+            targets: ["Views"])
     ],
     dependencies: [
-        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "10.0.0"),
+        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", exact: "10.19.0"),
     ],
     targets: [
-        .target(
-            name: "DwellCore",
-            dependencies: ["Models"],
-            path: "Sources/DwellCore",
-            swiftSettings: [
-                .define("SWIFT_PACKAGE")
-            ]
-        ),
         .target(
             name: "Models",
             dependencies: [
@@ -40,41 +32,45 @@ let package = Package(
                 .product(name: "FirebaseFirestore", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseStorage", package: "firebase-ios-sdk")
             ],
-            path: "Sources/Services",
-            swiftSettings: [
-                .define("SWIFT_PACKAGE")
-            ]
+            path: "Sources/Services"
         ),
         .target(
             name: "ViewModels",
             dependencies: [
                 "Models",
+                "Services"
+            ],
+            path: "Sources/ViewModels"
+        ),
+        .target(
+            name: "Views",
+            dependencies: [
+                "Models",
                 "Services",
+                "ViewModels",
                 .product(name: "FirebaseAuth", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseFirestore", package: "firebase-ios-sdk"),
                 .product(name: "FirebaseStorage", package: "firebase-ios-sdk")
             ],
-            path: "Sources/ViewModels",
-            swiftSettings: [
-                .define("SWIFT_PACKAGE")
+            path: "Sources/Views",
+            linkerSettings: [
+                .linkedFramework("UIKit", .when(platforms: [.iOS])),
+                .linkedFramework("AppKit", .when(platforms: [.macOS]))
             ]
         ),
         .executableTarget(
             name: "App",
             dependencies: [
-                "DwellCore",
                 "Models",
                 "Services",
-                "ViewModels"
+                "ViewModels",
+                "Views"
             ],
-            path: "Sources/App",
-            swiftSettings: [
-                .define("SWIFT_PACKAGE")
-            ]
+            path: "Sources/App"
         ),
         .testTarget(
             name: "DwellTests",
-            dependencies: ["DwellCore", "Models", "Services", "ViewModels"],
+            dependencies: ["Views"],
             path: "Tests"
         )
     ]

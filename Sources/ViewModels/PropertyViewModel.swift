@@ -20,6 +20,7 @@ public class PropertyViewModel: ObservableObject {
     @Published public var currentPage = 0
     @Published public var hasMoreProperties = true
     @Published public var currentUserId: String?
+    @Published public var property: Property?
     
     private var databaseService: DatabaseService!
     private var storageService: StorageService!
@@ -56,31 +57,48 @@ public class PropertyViewModel: ObservableObject {
     
     private func setup() {
         // Initial setup if needed
-        loadProperties()
+        Task {
+            try? await loadProperties()
+        }
     }
     
-    public func loadProperties() {
-        guard !isLoading else { return }
+    public func loadProperties() async throws {
+        guard !isLoading else { throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
         
-        databaseService.getPropertiesStream(limit: pageSize, lastPropertyId: lastPropertyId)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                self?.isLoading = false
-                if case .failure(let error) = completion {
-                    self?.error = error
-                }
-            } receiveValue: { [weak self] newProperties in
-                guard let self = self else { return }
-                if newProperties.isEmpty {
-                    self.hasMoreProperties = false
-                } else {
-                    self.properties.append(contentsOf: newProperties)
-                    self.lastPropertyId = newProperties.last?.id
-                }
+        do {
+            let newProperties = try await withCheckedThrowingContinuation { continuation in
+                databaseService.getPropertiesStream(limit: pageSize, lastPropertyId: lastPropertyId)
+                    .sink(
+                        receiveCompletion: { completion in
+                            switch completion {
+                            case .finished:
+                                break
+                            case .failure(let error):
+                                continuation.resume(throwing: error)
+                            }
+                        },
+                        receiveValue: { properties in
+                            continuation.resume(returning: properties)
+                        }
+                    )
+                    .store(in: &cancellables)
             }
-            .store(in: &cancellables)
+            
+            if newProperties.isEmpty {
+                hasMoreProperties = false
+            } else {
+                properties.append(contentsOf: newProperties)
+                lastPropertyId = newProperties.last?.id
+            }
+        } catch {
+            self.error = error
+            isLoading = false
+            throw error
+        }
+        
+        isLoading = false
     }
     
     public func loadFavorites(for userId: String) {
@@ -167,11 +185,11 @@ public class PropertyViewModel: ObservableObject {
         isLoading = false
     }
     
-    public func resetProperties() {
+    public func resetProperties() async throws {
         properties = []
         lastPropertyId = nil
         hasMoreProperties = true
-        loadProperties()
+        try await loadProperties()
     }
 
     #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
@@ -231,4 +249,31 @@ public class PropertyViewModel: ObservableObject {
         }
     }
     #endif
+    
+    public func createProperty(_ property: Property) async throws {
+        isLoading = true
+        error = nil
+        
+        do {
+            _ = try await databaseService.createProperty(property)
+            isLoading = false
+        } catch {
+            isLoading = false
+            self.error = error
+            throw error
+        }
+    }
+    
+    public func loadProperty(id: String) async {
+        isLoading = true
+        error = nil
+        
+        do {
+            property = try await databaseService.getProperty(id: id)
+        } catch {
+            self.error = error
+        }
+        
+        isLoading = false
+    }
 } 

@@ -1,4 +1,5 @@
 import SwiftUI
+import ViewModels
 
 struct RootView: View {
     @StateObject private var appViewModel = AppViewModel()
@@ -6,7 +7,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if !appViewModel.authViewModel.isAuthenticated {
-                AuthView(viewModel: appViewModel.authViewModel)
+                AuthView()
             } else {
                 MainTabView()
             }

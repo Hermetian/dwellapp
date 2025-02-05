@@ -1,4 +1,7 @@
 import SwiftUI
+import Models
+import ViewModels
+import Services
 
 struct MessagingView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
@@ -45,11 +48,24 @@ struct MessagingView: View {
 
 struct ConversationRow: View {
     let conversation: Conversation
+    @StateObject private var propertyViewModel = PropertyViewModel()
+    
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+    
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd/yy"
+        return formatter
+    }()
     
     var body: some View {
         HStack(spacing: 12) {
             // Property Thumbnail
-            AsyncImage(url: URL(string: "")) { image in // TODO: Add property thumbnail URL
+            AsyncImage(url: URL(string: propertyViewModel.property?.thumbnailUrl ?? "")) { image in
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -63,12 +79,12 @@ struct ConversationRow: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 // Property Title
-                Text("Property Title") // TODO: Add property title
+                Text(propertyViewModel.property?.title ?? "Property")
                     .font(.headline)
                     .lineLimit(1)
                 
                 // Last Message
-                Text(conversation.lastMessageContent)
+                Text(conversation.lastMessage ?? "No messages yet")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
@@ -78,33 +94,38 @@ struct ConversationRow: View {
             
             VStack(alignment: .trailing, spacing: 4) {
                 // Time
-                Text(formatDate(conversation.lastMessageAt))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let timestamp = conversation.lastMessageTimestamp {
+                    Text(formatDate(timestamp))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 
                 // Unread indicator
                 if conversation.hasUnreadMessages {
                     Circle()
-                        .fill(.blue)
+                        .fill(Color.blue)
                         .frame(width: 10, height: 10)
                 }
             }
         }
         .padding(.vertical, 8)
+        .onAppear {
+            if let propertyId = conversation.propertyId {
+                Task {
+                    await propertyViewModel.loadProperty(id: propertyId)
+                }
+            }
+        }
     }
     
     private func formatDate(_ date: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "h:mm a"
-            return formatter.string(from: date)
+            return Self.timeFormatter.string(from: date)
         } else if calendar.isDateInYesterday(date) {
             return "Yesterday"
         } else {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MM/dd/yy"
-            return formatter.string(from: date)
+            return Self.dateFormatter.string(from: date)
         }
     }
 }
@@ -114,6 +135,8 @@ struct ConversationView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var messagingViewModel = MessagingViewModel()
     @State private var messageText = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         VStack {
@@ -150,29 +173,47 @@ struct ConversationView: View {
             .padding()
         }
         .navigationTitle("Chat")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onAppear {
-            messagingViewModel.loadMessages(for: conversation.id ?? "")
+            messagingViewModel.loadMessages(for: conversation.id)
             Task {
-                await messagingViewModel.markConversationAsRead(conversation.id ?? "")
+                do {
+                    try await messagingViewModel.markConversationAsRead(conversation.id)
+                } catch {
+                    showError = true
+                    errorMessage = error.localizedDescription
+                }
             }
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK") {
+                showError = false
+                errorMessage = ""
+            }
+        } message: {
+            Text(errorMessage)
         }
     }
     
     private func sendMessage() {
         guard let userId = appViewModel.authViewModel.currentUser?.id,
-              let conversationId = conversation.id,
               !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
         
+        let messageToSend = messageText
+        messageText = "" // Clear immediately for better UX
+        
         Task {
-            await messagingViewModel.sendMessage(
-                content: messageText,
-                conversationId: conversationId,
-                senderId: userId
-            )
-            messageText = ""
+            do {
+                try await messagingViewModel.sendMessage(messageToSend, in: conversation.id, from: userId)
+            } catch {
+                showError = true
+                errorMessage = error.localizedDescription
+                messageText = messageToSend // Restore message text if send failed
+            }
         }
     }
 }
@@ -181,6 +222,12 @@ struct MessageBubble: View {
     let message: Message
     let isFromCurrentUser: Bool
     
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+    
     var body: some View {
         HStack {
             if isFromCurrentUser {
@@ -188,13 +235,13 @@ struct MessageBubble: View {
             }
             
             VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
-                Text(message.content)
+                Text(message.text)
                     .padding(12)
                     .background(isFromCurrentUser ? Color.blue : Color.secondary.opacity(0.2))
                     .foregroundColor(isFromCurrentUser ? .white : .primary)
                     .cornerRadius(16)
                 
-                Text(formatTime(message.timestamp))
+                Text(Self.timeFormatter.string(from: message.timestamp))
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -203,12 +250,6 @@ struct MessageBubble: View {
                 Spacer()
             }
         }
-    }
-    
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: date)
     }
 }
 

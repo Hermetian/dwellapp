@@ -1,5 +1,6 @@
 import SwiftUI
-import DwellCore
+import Models
+import ViewModels
 
 struct FavoritesView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
@@ -28,7 +29,7 @@ struct FavoritesView: View {
         .onAppear {
             if let userId = appViewModel.authViewModel.currentUser?.id {
                 Task {
-                    await appViewModel.propertyViewModel.loadFavoriteProperties(for: userId)
+                    appViewModel.propertyViewModel.loadFavorites(for: userId)
                 }
             }
         }

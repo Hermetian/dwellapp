@@ -1,10 +1,10 @@
 import SwiftUI
 import ViewModels
 
-struct MainTabView: View {
-    @StateObject private var appViewModel = AppViewModel()
+public struct MainTabView: View {
+    @EnvironmentObject var appViewModel: AppViewModel
     
-    var body: some View {
+    public var body: some View {
         TabView {
             NavigationView {
                 FeedView()
@@ -41,8 +41,9 @@ struct MainTabView: View {
                 Label("Profile", systemImage: "person.fill")
             }
         }
-        .environmentObject(appViewModel)
     }
+    
+    public init() {}
 }
 
 #Preview {

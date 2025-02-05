@@ -4,198 +4,172 @@ import AVKit
 import ViewModels
 
 struct PropertyDetailView: View {
-    let property: Property
-    let userId: String
     @EnvironmentObject private var appViewModel: AppViewModel
-    @StateObject private var videoPlayerViewModel = VideoPlayerViewModel()
     @StateObject private var messagingViewModel = MessagingViewModel()
-    @Environment(\.dismiss) private var dismiss
+    let property: Property
+    @State private var showingVideo = false
+    @State private var showingContact = false
+    @State private var showError = false
+    @State private var errorMessage = ""
     
-    init(property: Property, userId: String) {
-        self.property = property
-        self.userId = userId
+    private var isFavorited: Bool {
+        appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id }
     }
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                // Video Player
-                VideoPlayerView(url: URL(string: property.videoUrl)!)
-                    .frame(height: 300)
+            VStack(alignment: .leading, spacing: 20) {
+                // Property Images/Video
+                ZStack(alignment: .bottomTrailing) {
+                    AsyncImage(url: URL(string: property.thumbnailUrl ?? "")) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color.gray
+                    }
+                    .frame(height: 250)
+                    .clipped()
+                    
+                    if !property.videoUrl.isEmpty {
+                        Button {
+                            showingVideo = true
+                        } label: {
+                            Image(systemName: "play.circle.fill")
+                                .font(.largeTitle)
+                                .foregroundColor(.white)
+                                .padding(8)
+                        }
+                    }
+                }
                 
-                // Property Details
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 16) {
                     // Title and Price
-                    VStack(alignment: .leading, spacing: 8) {
+                    HStack {
                         Text(property.title)
                             .font(.title2)
                             .fontWeight(.bold)
-                        
-                        Text(formatPrice(property.price))
+                        Spacer()
+                        Text("$\(Int(property.price))/month")
                             .font(.title3)
                             .foregroundColor(.blue)
                     }
                     
-                    // Specifications
+                    // Address
+                    Text(property.address)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    // Property Details
                     HStack(spacing: 20) {
-                        SpecificationView(
-                            icon: "bed.double.fill",
-                            value: "\(property.bedrooms)",
-                            label: "Beds"
-                        )
-                        
-                        SpecificationView(
-                            icon: "shower.fill",
-                            value: "\(property.bathrooms)",
-                            label: "Baths"
-                        )
-                        
-                        SpecificationView(
-                            icon: "square.fill",
-                            value: formatArea(property.squareFootage),
-                            label: "Sq Ft"
-                        )
+                        DetailItem(icon: "bed.double.fill", value: "\(property.bedrooms)")
+                        DetailItem(icon: "shower.fill", value: String(format: "%.1f", property.bathrooms))
+                        DetailItem(icon: "square.fill", value: "\(Int(property.squareFootage)) sqft")
                     }
                     
                     // Description
                     Text("Description")
                         .font(.headline)
-                    
                     Text(property.description)
                         .font(.body)
                         .foregroundColor(.secondary)
                     
-                    // Address
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Location")
-                            .font(.headline)
-                        
-                        Text(property.address)
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    // Available From
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Available From")
-                            .font(.headline)
-                        
-                        Text(formatDate(property.availableFrom))
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                    }
-                    
                     // Amenities
                     if let amenities = property.amenities {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Amenities")
-                                .font(.headline)
-                            
-                            LazyVGrid(columns: [
-                                GridItem(.flexible()),
-                                GridItem(.flexible())
-                            ], spacing: 16) {
-                                ForEach(Array(amenities.keys), id: \.self) { key in
-                                    if let value = amenities[key] as? Bool, value {
-                                        AmenityView(name: key)
-                                    }
+                        Text("Amenities")
+                            .font(.headline)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                            ForEach(Array(amenities.keys.sorted()), id: \.self) { amenity in
+                                if amenities[amenity] ?? false {
+                                    AmenityView(name: amenity)
                                 }
                             }
                         }
                     }
                     
                     // Action Buttons
-                    HStack(spacing: 16) {
+                    HStack {
                         Button {
                             Task {
-                                await appViewModel.propertyViewModel.toggleFavorite(
-                                    propertyId: property.id ?? "",
-                                    userId: userId
-                                )
-                            }
-                        } label: {
-                            Label(
-                                appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id } ? "Favorited" : "Add to Favorites",
-                                systemImage: appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id } ? "heart.fill" : "heart"
-                            )
-                        }
-                        .buttonStyle(.bordered)
-                        
-                        Button {
-                            Task {
-                                let conversationId = await messagingViewModel.createOrGetConversation(
-                                    propertyId: property.id ?? "",
-                                    tenantId: userId,
-                                    managerId: property.managerId
-                                )
-                                
-                                if let conversationId = conversationId {
-                                    // Navigate to chat
-                                    // TODO: Implement navigation to chat
+                                do {
+                                    try await appViewModel.propertyViewModel.toggleFavorite(propertyId: property.id ?? "", userId: appViewModel.authViewModel.currentUser?.id ?? "")
+                                } catch {
+                                    errorMessage = error.localizedDescription
+                                    showError = true
                                 }
                             }
                         } label: {
-                            Label("Contact Manager", systemImage: "message")
+                            Image(systemName: isFavorited ? "heart.fill" : "heart")
+                                .foregroundColor(isFavorited ? .red : .gray)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
+                        
+                        Spacer()
+                        
+                        Button {
+                            Task {
+                                do {
+                                    guard let userId = appViewModel.authViewModel.currentUser?.id else { return }
+                                    let conversationId = try await messagingViewModel.createOrGetConversation(
+                                        propertyId: property.id ?? "",
+                                        tenantId: userId,
+                                        managerId: property.managerId
+                                    )
+                                    if !conversationId.isEmpty {
+                                        showingContact = true
+                                    }
+                                } catch {
+                                    errorMessage = error.localizedDescription
+                                    showError = true
+                                }
+                            }
+                        } label: {
+                            Text("Contact Manager")
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color.blue)
+                                .cornerRadius(10)
+                        }
                     }
                 }
                 .padding()
             }
         }
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Error", isPresented: .constant(appViewModel.propertyViewModel.error != nil)) {
-            Button("OK") {
-                appViewModel.propertyViewModel.error = nil
-            }
+        #endif
+        .alert("Error", isPresented: $showError) {
+            Button("OK") { }
         } message: {
-            Text(appViewModel.propertyViewModel.error?.localizedDescription ?? "")
+            Text(errorMessage)
         }
-        .onAppear {
-            Task {
-                await appViewModel.propertyViewModel.incrementViewCount(for: property.id ?? "")
+        .sheet(isPresented: $showingVideo) {
+            if !property.videoUrl.isEmpty, let videoURL = URL(string: property.videoUrl) {
+                #if os(iOS)
+                AVPlayerViewController(player: AVPlayer(url: videoURL))
+                    .ignoresSafeArea()
+                #else
+                VideoPlayer(player: AVPlayer(url: videoURL))
+                    .frame(minHeight: 400)
+                #endif
             }
         }
-    }
-    
-    private func formatPrice(_ price: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.maximumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: price)) ?? "$\(price)"
-    }
-    
-    private func formatArea(_ area: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: area)) ?? "\(area)"
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: date)
+        .sheet(isPresented: $showingContact) {
+            MessagingView()
+        }
     }
 }
 
-struct SpecificationView: View {
+struct DetailItem: View {
     let icon: String
     let value: String
-    let label: String
     
     var body: some View {
-        VStack(spacing: 4) {
+        HStack {
             Image(systemName: icon)
-                .font(.title3)
                 .foregroundColor(.blue)
-            
             Text(value)
-                .font(.headline)
-            
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(.subheadline)
         }
     }
 }
@@ -204,57 +178,32 @@ struct AmenityView: View {
     let name: String
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)
-            
-            Text(name.capitalized)
+            Text(name)
                 .font(.subheadline)
         }
-    }
-}
-
-struct VideoPlayerView: View {
-    let url: URL
-    @StateObject private var videoPlayerViewModel = VideoPlayerViewModel()
-    
-    var body: some View {
-        ZStack {
-            if videoPlayerViewModel.isLoading {
-                ProgressView()
-            } else if let thumbnailImage = videoPlayerViewModel.thumbnailImage {
-                Image(uiImage: thumbnailImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            }
-            
-            VideoPlayer(player: AVPlayer(url: url))
-                .onAppear {
-                    Task {
-                        await videoPlayerViewModel.setupPlayer(with: url)
-                    }
-                }
-                .onDisappear {
-                    videoPlayerViewModel.cleanup()
-                }
-        }
+        .padding(.vertical, 4)
     }
 }
 
 #Preview {
-    PropertyDetailView(
-        property: Property(
+    NavigationView {
+        PropertyDetailView(property: Property(
             managerId: "123",
-            title: "Luxury Apartment",
-            description: "Beautiful apartment with amazing views",
-            price: 500000,
+            title: "Sample Property",
+            description: "A beautiful property",
+            price: 2000,
             address: "123 Main St",
-            videoUrl: "https://example.com/video.mp4",
+            videoUrl: "",
             bedrooms: 2,
             bathrooms: 2,
-            squareFootage: 1200,
-            availableFrom: Date()
-        ),
-        userId: "456"
-    )
+            squareFootage: 1000,
+            availableFrom: Date(),
+            type: "Apartment",
+            userId: "123"
+        ))
+        .environmentObject(AppViewModel())
+    }
 } 
