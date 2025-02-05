@@ -1,8 +1,7 @@
+import Core
 import SwiftUI
-import Models
 import Combine
 import AVFoundation
-import Services
 
 #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import UIKit

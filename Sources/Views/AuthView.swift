@@ -1,5 +1,5 @@
+import Core
 import SwiftUI
-import Services
 import ViewModels
 
 public struct AuthView: View {

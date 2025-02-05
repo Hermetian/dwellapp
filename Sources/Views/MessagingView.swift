@@ -1,13 +1,12 @@
+import Core
 import SwiftUI
-import Models
 import ViewModels
-import Services
 
-struct MessagingView: View {
+public struct MessagingView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var messagingViewModel = MessagingViewModel()
     
-    var body: some View {
+    public var body: some View {
         NavigationView {
             Group {
                 if messagingViewModel.isLoading {
@@ -62,7 +61,7 @@ struct ConversationRow: View {
         return formatter
     }()
     
-    var body: some View {
+    public var body: some View {
         HStack(spacing: 12) {
             // Property Thumbnail
             AsyncImage(url: URL(string: propertyViewModel.property?.thumbnailUrl ?? "")) { image in
@@ -138,7 +137,7 @@ struct ConversationView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
-    var body: some View {
+    public var body: some View {
         VStack {
             // Messages
             ScrollView {
@@ -228,7 +227,7 @@ struct MessageBubble: View {
         return formatter
     }()
     
-    var body: some View {
+    public var body: some View {
         HStack {
             if isFromCurrentUser {
                 Spacer()
@@ -254,7 +253,7 @@ struct MessageBubble: View {
 }
 
 struct EmptyConversationsView: View {
-    var body: some View {
+    public var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "message.fill")
                 .font(.system(size: 60))

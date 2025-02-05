@@ -1,5 +1,5 @@
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+import Foundation
 
 public struct Property: Identifiable, Codable {
     @DocumentID public var id: String?

@@ -1,5 +1,5 @@
-import SwiftUI
-import Services
+import Core
+import Foundation
 
 @MainActor
 public final class AppViewModel: ObservableObject {

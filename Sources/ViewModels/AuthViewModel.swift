@@ -1,7 +1,6 @@
+import Core
 import SwiftUI
-import Models
 import Combine
-import Services
 
 @MainActor
 public class AuthViewModel: ObservableObject {

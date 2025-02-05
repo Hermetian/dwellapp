@@ -1,6 +1,6 @@
 import SwiftUI
 import AVKit
-import Models
+import Core
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)

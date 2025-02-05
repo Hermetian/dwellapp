@@ -1,14 +1,14 @@
+import Core
 import SwiftUI
-import Models
 import ViewModels
 
-struct FeedView: View {
+public struct FeedView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var searchText = ""
     @State private var showError = false
     @State private var errorMessage = ""
     
-    var body: some View {
+    public var body: some View {
         NavigationView {
             ScrollView {
                 LazyVStack(spacing: 20) {

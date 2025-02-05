@@ -1,9 +1,9 @@
+import Core
 import SwiftUI
-import Models
 import AVKit
 import ViewModels
 
-struct PropertyDetailView: View {
+public struct PropertyDetailView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var messagingViewModel = MessagingViewModel()
     let property: Property
@@ -16,7 +16,7 @@ struct PropertyDetailView: View {
         appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id }
     }
     
-    var body: some View {
+    public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // Property Images/Video
@@ -165,7 +165,7 @@ struct DetailItem: View {
     let icon: String
     let value: String
     
-    var body: some View {
+    public var body: some View {
         HStack {
             Image(systemName: icon)
                 .foregroundColor(.blue)
@@ -178,7 +178,7 @@ struct DetailItem: View {
 struct AmenityView: View {
     let name: String
     
-    var body: some View {
+    public var body: some View {
         HStack {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)

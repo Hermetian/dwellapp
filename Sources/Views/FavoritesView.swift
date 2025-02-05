@@ -1,5 +1,5 @@
 import SwiftUI
-import Models
+import Core
 import ViewModels
 
 struct FavoritesView: View {

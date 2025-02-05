@@ -1,19 +1,16 @@
+import Core
 import SwiftUI
-import Models
-import PhotosUI
-#if os(iOS)
-import UIKit
-#elseif os(macOS)
-import AppKit
-#endif
 import ViewModels
+#if os(iOS)
+import PhotosUI
+#endif
 
-struct ImagePicker: ViewModifier {
+public struct ImagePicker: ViewModifier {
     @Binding var isPresented: Bool
     let onSelect: (Data) -> Void
     @State private var selectedItem: PhotosPickerItem?
     
-    func body(content: Content) -> some View {
+    public func body(content: Content) -> some View {
         content
             #if os(iOS)
             .sheet(isPresented: $isPresented) {
@@ -90,7 +87,7 @@ struct ProfileImageView: View {
     }
 }
 
-struct ProfileView: View {
+public struct ProfileView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @State private var showingEditProfile = false
     @State private var showingSettings = false

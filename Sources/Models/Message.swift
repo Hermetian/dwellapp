@@ -1,5 +1,4 @@
 import FirebaseFirestore
-import FirebaseFirestoreSwift
 import Foundation
 
 public struct Message: Identifiable, Codable {

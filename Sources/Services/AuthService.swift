@@ -1,12 +1,11 @@
 import SwiftUI
-import Models
 import FirebaseAuth
 import FirebaseFirestore
 import Combine
 
 @MainActor
 public class AuthService: ObservableObject {
-    @Published public var currentUser: Models.User?
+    @Published public var currentUser: User?
     private var handle: AuthStateDidChangeListenerHandle?
     private let auth = Auth.auth()
     private let db = Firestore.firestore()
@@ -42,7 +41,7 @@ public class AuthService: ObservableObject {
     
     private func fetchUser(userId: String) async throws {
         let document = try await db.collection("users").document(userId).getDocument()
-        let user = try document.data(as: Models.User.self)
+        let user = try document.data(as: User.self)
         await MainActor.run {
             self.currentUser = user
         }
@@ -60,7 +59,7 @@ public class AuthService: ObservableObject {
     public func signUp(email: String, password: String, name: String) async throws {
         do {
             let result = try await auth.createUser(withEmail: email, password: password)
-            let user = Models.User(id: result.user.uid,
+            let user = User(id: result.user.uid,
                                  email: email,
                                  name: name)
             
@@ -74,7 +73,7 @@ public class AuthService: ObservableObject {
     public func signOut() async throws {
         do {
             try auth.signOut()
-            currentUser = nil as Models.User?
+            currentUser = nil as User?
         } catch {
             throw AuthError.signOutError(error.localizedDescription)
         }
@@ -109,7 +108,7 @@ public class AuthService: ObservableObject {
             let userId = user.uid
             try await db.collection("users").document(userId).delete()
             try await user.delete()
-            currentUser = nil as Models.User?
+            currentUser = nil as User?
         } catch {
             throw AuthError.deleteAccountError(error.localizedDescription)
         }

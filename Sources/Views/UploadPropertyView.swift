@@ -1,7 +1,7 @@
 import SwiftUI
 import PhotosUI
 import AVKit
-import Models
+import Core
 import ViewModels
 
 struct UploadPropertyView: View {
