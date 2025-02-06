@@ -17,10 +17,24 @@ public struct AuthView: View {
         NavigationView {
             VStack(spacing: 20) {
                 // Logo and Title
-                Image("logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 100, height: 100)
+                VStack(spacing: 12) {
+                    Image("Logo", bundle: .main)
+                        .interpolation(.high)
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 120, height: 120)
+                        .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                    
+                    Text("DwellApp")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text("Find your perfect home")
+                        .font(.title3)
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                .padding(.top, 40)
                 
                 Text(isSignUp ? "Create Account" : "Welcome Back")
                     .font(.title)

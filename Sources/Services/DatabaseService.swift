@@ -228,7 +228,7 @@ public class DatabaseService: ObservableObject {
         // Create new conversation
         let conversation = Conversation.create(propertyId: propertyId, tenantId: tenantId, managerId: managerId)
         let docRef = db.collection("conversations").document(conversation.id)
-        try await docRef.setData(from: conversation)
+        try docRef.setData(from: conversation)
         return conversation.id
     }
     
@@ -319,6 +319,11 @@ public class DatabaseService: ObservableObject {
     @MainActor
     public func markConversationAsRead(conversationId: String) async throws {
         let ref = db.collection("conversations").document(conversationId)
-        try await ref.updateData(["hasUnreadMessages": false])
+        // Create a Sendable dictionary
+        let updateData: [String: Any] = ["hasUnreadMessages": false]
+        @Sendable func updateFirestore() async throws {
+            try await ref.updateData(updateData)
+        }
+        try await updateFirestore()
     }
 } 

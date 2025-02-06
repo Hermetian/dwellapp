@@ -24,6 +24,15 @@ public struct Property: Identifiable, Codable {
     public let type: String
     public let userId: String
     
+    public var uniqueIdentifier: String {
+        [id ?? UUID().uuidString,
+         title,
+         address,
+         String(price),
+         String(bedrooms),
+         String(bathrooms)].joined(separator: "-")
+    }
+    
     enum CodingKeys: String, CodingKey {
         case id
         case managerId

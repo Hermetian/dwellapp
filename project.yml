@@ -163,18 +163,12 @@ targets:
     sources:
       - path: Sources
         excludes:
-          - "Assets.xcassets"
-          - "Preview Content"
           - "Services/**"
           - "Models/**"
           - "ViewModels/**"
           - "Views/**"
-      - path: Sources/Assets.xcassets
-        type: folder
-        buildPhase: resources
-      - path: Sources/Preview Content
-        type: folder
-        buildPhase: resources
+      - path: Assets.xcassets
+      - path: Preview Content
       - path: GoogleService-Info.plist
         type: file
         buildPhase: resources
@@ -193,7 +187,7 @@ targets:
         INFOPLIST_FILE: Sources/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.gauntletai.dwell
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        DEVELOPMENT_ASSET_PATHS: Sources/Preview\ Content
+        DEVELOPMENT_ASSET_PATHS: Preview\ Content
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0.0
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
@@ -207,18 +201,12 @@ targets:
     sources:
       - path: Sources
         excludes:
-          - "Assets.xcassets"
-          - "Preview Content"
           - "Services/**"
           - "Models/**"
           - "ViewModels/**"
           - "Views/**"
-      - path: Sources/Assets.xcassets
-        type: folder
-        buildPhase: resources
-      - path: Sources/Preview Content
-        type: folder
-        buildPhase: resources
+      - path: Assets.xcassets
+      - path: Preview Content
       - path: GoogleService-Info.plist
         type: file
         buildPhase: resources
@@ -237,7 +225,7 @@ targets:
         INFOPLIST_FILE: Sources/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.gauntletai.dwell
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        DEVELOPMENT_ASSET_PATHS: Sources/Preview\ Content
+        DEVELOPMENT_ASSET_PATHS: Preview\ Content
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0.0
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"

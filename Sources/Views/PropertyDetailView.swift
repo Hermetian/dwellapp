@@ -79,7 +79,7 @@ public struct PropertyDetailView: View {
                         Text("Amenities")
                             .font(.headline)
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ForEach(Array(amenities.keys.sorted()), id: \.self) { amenity in
+                            ForEach(Array(amenities.keys.sorted().enumerated()), id: \.element) { index, amenity in
                                 if amenities[amenity] ?? false {
                                     AmenityView(name: amenity)
                                 }

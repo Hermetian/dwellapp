@@ -70,7 +70,7 @@ public class AuthService: ObservableObject {
                     throw AuthError.signInError("This account has been disabled")
                 case AuthErrorCode.invalidCredential.rawValue:
                     // Try to sign out first to clear any stale auth state
-                    try? await auth.signOut()
+                    try? auth.signOut()
                     throw AuthError.signInError("Invalid credentials. Please try signing in again.")
                 default:
                     throw AuthError.signInError("Failed to sign in: \(error.localizedDescription)")
@@ -97,7 +97,7 @@ public class AuthService: ObservableObject {
             
             print("💾 Creating user document in Firestore...")
             do {
-                try await db.collection("users").document(result.user.uid).setData(from: user)
+                try db.collection("users").document(result.user.uid).setData(from: user)
                 print("✅ User document created in Firestore")
                 
                 print("🔄 Fetching user data...")
@@ -235,7 +235,7 @@ public class AuthService: ObservableObject {
                               favoriteListings: [],
                               createdAt: Date(),
                               updatedAt: Date())
-                try await db.collection("users").document(result.user.uid).setData(from: user)
+                try db.collection("users").document(result.user.uid).setData(from: user)
             }
             try await fetchUser(userId: result.user.uid)
         } catch {

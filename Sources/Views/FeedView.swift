@@ -12,7 +12,7 @@ public struct FeedView: View {
         NavigationView {
             ScrollView {
                 LazyVStack(spacing: 20) {
-                    ForEach(filteredProperties) { property in
+                    ForEach(filteredProperties.filter { $0.id != nil }, id: \.uniqueIdentifier) { property in
                         NavigationLink {
                             PropertyDetailView(property: property)
                         } label: {
