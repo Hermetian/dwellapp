@@ -1,10 +1,11 @@
 import Core
 import SwiftUI
 import Combine
+import FirebaseAuth
 
 @MainActor
 public class AuthViewModel: ObservableObject {
-    @Published public var currentUser: User?
+    @Published public var currentUser: Core.User?
     @Published public var isAuthenticated = false
     @Published public var error: Error?
     @Published public var isLoading = false
@@ -63,8 +64,8 @@ public class AuthViewModel: ObservableObject {
         ensureServiceInitialized()
         guard !isLoading else { return }
         guard !email.isEmpty && !password.isEmpty else {
-            handleError(AuthError.signInError("Email and password are required"))
-            return
+            handleError(AuthError.signInError("Please enter your email and password"))
+            throw AuthError.signInError("Please enter your email and password")
         }
         
         isLoading = true
@@ -78,35 +79,92 @@ public class AuthViewModel: ObservableObject {
                 withAnimation {
                     self.isAuthenticated = true
                 }
-                objectWillChange.send()  // Force UI update
+                objectWillChange.send()
                 print("✅ isAuthenticated set to true")
             }
-        } catch {
-            handleError(error)
-            throw error
+        } catch let error as NSError {
+            print("❌ Sign in error: \(error)")
+            isLoading = false
+            if error.domain == AuthErrorDomain {
+                switch error.code {
+                case AuthErrorCode.wrongPassword.rawValue:
+                    let error = AuthError.signInError("Incorrect password. Please try again.")
+                    handleError(error)
+                    throw error
+                case AuthErrorCode.userNotFound.rawValue:
+                    let error = AuthError.signInError("No account found with this email. Please sign up first.")
+                    handleError(error)
+                    throw error
+                case AuthErrorCode.invalidEmail.rawValue:
+                    let error = AuthError.signInError("Please enter a valid email address")
+                    handleError(error)
+                    throw error
+                case AuthErrorCode.userDisabled.rawValue:
+                    let error = AuthError.signInError("This account has been disabled")
+                    handleError(error)
+                    throw error
+                case AuthErrorCode.tooManyRequests.rawValue:
+                    let error = AuthError.signInError("Too many failed attempts. Please try again later.")
+                    handleError(error)
+                    throw error
+                case AuthErrorCode.networkError.rawValue:
+                    let error = AuthError.signInError("Network error. Please check your connection and try again.")
+                    handleError(error)
+                    throw error
+                default:
+                    let error = AuthError.signInError("Failed to sign in: \(error.localizedDescription)")
+                    handleError(error)
+                    throw error
+                }
+            } else {
+                let error = AuthError.signInError("An unexpected error occurred. Please try again.")
+                handleError(error)
+                throw error
+            }
         }
         
         isLoading = false
     }
     
     public func signUp(email: String, password: String, name: String) async throws {
-        guard !isLoading else { return }
+        print("🚀 AuthViewModel: Starting signup process")
+        guard !isLoading else {
+            print("⚠️ AuthViewModel: Signup already in progress")
+            return
+        }
         guard !email.isEmpty && !password.isEmpty && !name.isEmpty else {
-            handleError(AuthError.signUpError("All fields are required"))
-            return
+            print("⚠️ AuthViewModel: Missing required fields")
+            let error = AuthError.signUpError("Please fill in all required fields")
+            handleError(error)
+            throw error
         }
         
-        guard validatePassword(password) else {
-            handleError(AuthError.signUpError("Password must be at least 8 characters and contain at least one number"))
-            return
+        // Check password requirements separately for clearer error messages
+        if password.count < 8 {
+            print("⚠️ AuthViewModel: Password too short")
+            let error = AuthError.signUpError("Password must be at least 8 characters long")
+            handleError(error)
+            throw error
         }
         
+        if !password.contains(where: { $0.isNumber }) {
+            print("⚠️ AuthViewModel: Password missing number")
+            let error = AuthError.signUpError("Password must contain at least one number")
+            handleError(error)
+            throw error
+        }
+        
+        print("📝 AuthViewModel: All validation passed, proceeding with signup")
         isLoading = true
         clearError()
         
         do {
+            print("🔐 AuthViewModel: Calling AuthService.signUp")
             try await authService.signUp(email: email, password: password, name: name)
+            print("✅ AuthViewModel: Signup successful")
         } catch {
+            print("❌ AuthViewModel: Signup failed with error: \(error.localizedDescription)")
+            isLoading = false
             handleError(error)
             throw error
         }

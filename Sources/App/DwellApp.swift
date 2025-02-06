@@ -20,7 +20,13 @@ struct DwellApp: App {
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        // Enable Firebase debug logging
+        FirebaseConfiguration.shared.setLoggerLevel(.debug)
+        
+        // Configure Firebase
         FirebaseApp.configure()
+        
+        print("🔥 Firebase configured with debug logging enabled")
         return true
     }
     

@@ -1,5 +1,6 @@
 import SwiftUI
 import ViewModels
+import Core
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -28,6 +29,10 @@ struct SignUpView: View {
     @State private var confirmPassword = ""
     @State private var showTerms = false
     @State private var acceptedTerms = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    @State private var emailError: String?
+    @State private var passwordError: String?
     
     private var isFormValid: Bool {
         !name.isEmpty &&
@@ -63,41 +68,71 @@ struct SignUpView: View {
                         #endif
                     
                     // Email field
-                    TextField("Email", text: $email)
-                        .textFieldStyle(RoundedTextFieldStyle())
-                        #if os(iOS)
-                        .textContentType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                        #endif
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("Email", text: $email)
+                            .textFieldStyle(RoundedTextFieldStyle())
+                            #if os(iOS)
+                            .textContentType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                            #endif
+                            .onChange(of: email) { _ in
+                                emailError = nil
+                            }
+                        
+                        if let error = emailError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
                     
                     // Password field
-                    SecureField("Password", text: $password)
-                        .textFieldStyle(RoundedTextFieldStyle())
-                        #if os(iOS)
-                        .textContentType(.newPassword)
-                        #endif
+                    VStack(alignment: .leading, spacing: 4) {
+                        SecureField("Password", text: $password)
+                            .textFieldStyle(RoundedTextFieldStyle())
+                            #if os(iOS)
+                            .textContentType(.newPassword)
+                            #endif
+                            .onChange(of: password) { _ in
+                                passwordError = nil
+                            }
+                        
+                        if let error = passwordError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .padding(.vertical, 2)
+                        }
+                        
+                        Text("Password Requirements:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 4)
+                        
+                        PasswordRequirementView(
+                            text: "At least 8 characters",
+                            isMet: password.count >= 8
+                        )
+                        PasswordRequirementView(
+                            text: "Contains at least one number (0-9)",
+                            isMet: password.contains { $0.isNumber }
+                        )
+                    }
                     
                     // Confirm Password field
-                    SecureField("Confirm Password", text: $confirmPassword)
-                        .textFieldStyle(RoundedTextFieldStyle())
-                        #if os(iOS)
-                        .textContentType(.newPassword)
-                        #endif
-                    
-                    // Password requirements
-                    if !password.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            PasswordRequirementView(
-                                text: "At least 8 characters",
-                                isMet: password.count >= 8
-                            )
-                            PasswordRequirementView(
-                                text: "Contains a number",
-                                isMet: password.contains { $0.isNumber }
-                            )
+                    VStack(alignment: .leading, spacing: 4) {
+                        SecureField("Confirm Password", text: $confirmPassword)
+                            .textFieldStyle(RoundedTextFieldStyle())
+                            #if os(iOS)
+                            .textContentType(.newPassword)
+                            #endif
+                            
+                        if !confirmPassword.isEmpty && password != confirmPassword {
+                            Text("Passwords do not match")
+                                .font(.caption)
+                                .foregroundColor(.red)
                         }
-                        .padding(.vertical, 4)
                     }
                     
                     // Terms and Conditions
@@ -112,20 +147,35 @@ struct SignUpView: View {
                     Button {
                         Task {
                             do {
+                                // Clear previous errors
+                                emailError = nil
+                                passwordError = nil
+                                alertMessage = ""
+                                showAlert = false
+                                
+                                print("📱 SignUpView: Starting signup process")
                                 try await appViewModel.authViewModel.signUp(
                                     email: email,
                                     password: password,
                                     name: name
                                 )
+                                
+                                print("📱 SignUpView: Signup successful, dismissing view")
                                 dismiss()
                             } catch {
-                                // Error is handled by the view model
+                                print("📱 SignUpView: Signup failed with error: \(error.localizedDescription)")
+                                handleSignupError(error)
                             }
                         }
                     } label: {
                         if appViewModel.authViewModel.isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
+                            HStack {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                Text("Creating Account...")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            }
                         } else {
                             Text("Create Account")
                                 .font(.headline)
@@ -147,13 +197,6 @@ struct SignUpView: View {
                 .padding(.horizontal, 24)
             }
         }
-        .alert("Error", isPresented: $appViewModel.authViewModel.showError) {
-            Button("OK") {
-                appViewModel.authViewModel.clearError()
-            }
-        } message: {
-            Text(appViewModel.authViewModel.error?.localizedDescription ?? "")
-        }
         .sheet(isPresented: $showTerms) {
             TermsView()
         }
@@ -171,6 +214,33 @@ struct SignUpView: View {
                 }
             }
             #endif
+        }
+        .alert("Error", isPresented: $showAlert) {
+            Button("OK") { }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+    
+    private func handleSignupError(_ error: Error) {
+        if let authError = error as? Core.AuthError {
+            switch authError {
+            case .signUpError(let message):
+                if message.contains("email") {
+                    emailError = message
+                } else if message.contains("password") || message.contains("Password") {
+                    passwordError = message
+                } else {
+                    alertMessage = message
+                    showAlert = true
+                }
+            default:
+                alertMessage = error.localizedDescription
+                showAlert = true
+            }
+        } else {
+            alertMessage = error.localizedDescription
+            showAlert = true
         }
     }
 }

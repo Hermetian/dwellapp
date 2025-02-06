@@ -68,6 +68,10 @@ public class AuthService: ObservableObject {
                     throw AuthError.signInError("Please enter a valid email address")
                 case AuthErrorCode.userDisabled.rawValue:
                     throw AuthError.signInError("This account has been disabled")
+                case AuthErrorCode.invalidCredential.rawValue:
+                    // Try to sign out first to clear any stale auth state
+                    try? await auth.signOut()
+                    throw AuthError.signInError("Invalid credentials. Please try signing in again.")
                 default:
                     throw AuthError.signInError("Failed to sign in: \(error.localizedDescription)")
                 }
@@ -78,8 +82,12 @@ public class AuthService: ObservableObject {
     }
     
     public func signUp(email: String, password: String, name: String) async throws {
+        print("📝 Starting sign up process for email: \(email)")
         do {
+            print("🔐 Creating Firebase user account...")
             let result = try await auth.createUser(withEmail: email, password: password)
+            print("✅ Firebase user created with ID: \(result.user.uid)")
+            
             let user = User(id: result.user.uid,
                           email: email,
                           name: name,
@@ -87,10 +95,26 @@ public class AuthService: ObservableObject {
                           createdAt: Date(),
                           updatedAt: Date())
             
-            try await db.collection("users").document(result.user.uid).setData(from: user)
-            try await fetchUser(userId: result.user.uid)
+            print("💾 Creating user document in Firestore...")
+            do {
+                try await db.collection("users").document(result.user.uid).setData(from: user)
+                print("✅ User document created in Firestore")
+                
+                print("🔄 Fetching user data...")
+                try await fetchUser(userId: result.user.uid)
+                print("✅ Sign up process completed successfully")
+            } catch {
+                // If Firestore document creation fails, delete the auth user to maintain consistency
+                print("❌ Failed to create user document in Firestore")
+                try? await result.user.delete()
+                throw AuthError.signUpError("Failed to complete signup. Please try again.")
+            }
         } catch let error as NSError {
-            print("Sign up error: \(error)")
+            print("❌ Sign up error: \(error)")
+            print("❌ Error domain: \(error.domain)")
+            print("❌ Error code: \(error.code)")
+            print("❌ Error user info: \(error.userInfo)")
+            
             if error.domain == AuthErrorDomain {
                 switch error.code {
                 case AuthErrorCode.emailAlreadyInUse.rawValue:
@@ -99,6 +123,8 @@ public class AuthService: ObservableObject {
                     throw AuthError.signUpError("Please enter a valid email address")
                 case AuthErrorCode.weakPassword.rawValue:
                     throw AuthError.signUpError("Please choose a stronger password")
+                case AuthErrorCode.networkError.rawValue:
+                    throw AuthError.signUpError("Network error. Please check your internet connection and try again.")
                 default:
                     throw AuthError.signUpError("Failed to create account: \(error.localizedDescription)")
                 }
