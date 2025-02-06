@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 56;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -57,7 +57,9 @@
 		8C4388FAA0AF626A66E3ABD8 /* Core_macOS.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4BBB444A6F9018C414429894 /* Core_macOS.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		90AD63168A861BD9A352CFAD /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FD006204D1A5845C052C90 /* AuthViewModel.swift */; };
 		90D681177C5E4C4E155E7A1E /* Core_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4BBB444A6F9018C414429894 /* Core_macOS.framework */; };
+		96FFB97FBE49749787914C91 /* EmailLinkSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E564A2FD1EE8E25A27F77 /* EmailLinkSignInView.swift */; };
 		98F1E7A277A5AE2388D1FEBE /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02EA244EEF674B695C4E4BC /* AppViewModel.swift */; };
+		99E9BF2A5DFC02AEB5F5B5D8 /* EmailLinkSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E564A2FD1EE8E25A27F77 /* EmailLinkSignInView.swift */; };
 		9A4921169D626B5FBE0A3589 /* PropertyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8B50B0035819D2EEE5E5DE /* PropertyDetailView.swift */; };
 		9B479E24D16BD5844C0D5FD5 /* MessagingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9947D3A73D0640D2E88D172 /* MessagingViewModel.swift */; };
 		9DB6000EFF6889D6BBE91B07 /* DatabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F7D9C98318B3E43605AD60 /* DatabaseService.swift */; };
@@ -86,6 +88,7 @@
 		E49BFA0BE5BC0FD8367F950D /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E69A0D907B7C2EC7BDD82C2C /* ProfileView.swift */; };
 		E5E1630A3D55B651DA416470 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A279056A6BD87D5F9C0AA4E /* SearchView.swift */; };
 		E703B639B73C0E8E29C643F0 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C45B8A03E7C242106921A45 /* FeedView.swift */; };
+		E7314E79D5C0F053FCFAF1FB /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FAD2187C71870BF1CBF4A5D0 /* GoogleService-Info.plist */; };
 		EBB2A4C173D0E1E5CECAAD42 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E69A0D907B7C2EC7BDD82C2C /* ProfileView.swift */; };
 		EF17D2D5E60CA420CA9BF636 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A77BB1A9BAFDA337B461B7 /* AuthView.swift */; };
 		EF61B1B2D026C37F2AC165F8 /* Core_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FC0538A8BB344E1D68846D /* Core_iOS.framework */; };
@@ -93,6 +96,7 @@
 		F51059B1DA2EA5FD6C387483 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DD042879A66C7834F4FB239 /* Conversation.swift */; };
 		F6165EDC5F307A95B75F3C44 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A279056A6BD87D5F9C0AA4E /* SearchView.swift */; };
 		F7045D1D1DB67B09A9E5C288 /* ViewModels_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E9AE3183F15AF88203927222 /* ViewModels_macOS.framework */; };
+		FC475C47C5ED2CE5025C74C5 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FAD2187C71870BF1CBF4A5D0 /* GoogleService-Info.plist */; };
 		FFADC9B8D2CD4D3B0A90F470 /* ViewModels_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F45CD25EF0080CCFC4B33183 /* ViewModels_iOS.framework */; };
 		FFD179F47D399FB5329B6A8F /* Core_iOS.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = B9FC0538A8BB344E1D68846D /* Core_iOS.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -216,15 +220,16 @@
 		1CFD4A03DFC3E003DF4BB3AC /* dwellapp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = dwellapp.entitlements; sourceTree = "<group>"; };
 		20F3E659C943ABD14E9338CA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Assets.xcassets; path = Sources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		22BB2E82E6877A905E0EE7B9 /* RangeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeSlider.swift; sourceTree = "<group>"; };
+		251E564A2FD1EE8E25A27F77 /* EmailLinkSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailLinkSignInView.swift; sourceTree = "<group>"; };
 		26E02EB21D3919DF7E7480BD /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		33F7D9C98318B3E43605AD60 /* DatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseService.swift; sourceTree = "<group>"; };
-		34E3BE063EF49C7236F6D514 /* Views_macOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Views_macOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		34E3BE063EF49C7236F6D514 /* Views_macOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = Views_macOS.framework; path = Views.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		36BF000CDBB20B545182DCA7 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		45CB3F0ED998C2E3A1EDC433 /* MessagingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagingView.swift; sourceTree = "<group>"; };
-		4BBB444A6F9018C414429894 /* Core_macOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Core_macOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4BBB444A6F9018C414429894 /* Core_macOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = Core_macOS.framework; path = Core.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		5056B2623ABA832E6BE31A76 /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
 		5A279056A6BD87D5F9C0AA4E /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
-		6C3E0326AA95633E25E8F4F7 /* Dwell_macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dwell_macOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6C3E0326AA95633E25E8F4F7 /* Dwell_macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = Dwell_macOS.app; path = Dwell.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7567C1D9A5649E80EE85057A /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		7DD042879A66C7834F4FB239 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
 		84483BD2119B2D765C5EB43D /* VideoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoService.swift; sourceTree = "<group>"; };
@@ -233,14 +238,14 @@
 		9300632C38B9C883B7452964 /* FirebaseExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseExtensions.swift; sourceTree = "<group>"; };
 		9957D359F347E8CF2B572E1D /* ForgotPasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgotPasswordView.swift; sourceTree = "<group>"; };
 		9A6A7A77B5120703C9BE3BFA /* VideoPlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerViewModel.swift; sourceTree = "<group>"; };
-		A645FCA01E4CCC9DFFCFA9BE /* Dwell_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Dwell_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A645FCA01E4CCC9DFFCFA9BE /* Dwell.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dwell.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA8B50B0035819D2EEE5E5DE /* PropertyDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyDetailView.swift; sourceTree = "<group>"; };
 		B4A77BB1A9BAFDA337B461B7 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		B66997A68E4F4B264E79D138 /* FirebaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseConfig.swift; sourceTree = "<group>"; };
-		B9FC0538A8BB344E1D68846D /* Core_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Core_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B9FC0538A8BB344E1D68846D /* Core_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = Core_iOS.framework; path = Core.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		BD48C65B7FE8275519EE5EEC /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
 		BF87AC73E6A8A9C2120976F9 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
-		C27BFDFF4A1C5F1F5EE617CE /* Views_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Views_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		C27BFDFF4A1C5F1F5EE617CE /* Views_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = Views_iOS.framework; path = Views.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6FD006204D1A5845C052C90 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		C76A9346710659F40B5CD95A /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		D6454136BE477F8A1AFE03C2 /* Preview Content */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "Preview Content"; path = "Sources/Preview Content"; sourceTree = SOURCE_ROOT; };
@@ -252,8 +257,9 @@
 		E5AF25B96B9C8F5EA8102BDD /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
 		E69A0D907B7C2EC7BDD82C2C /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		E9947D3A73D0640D2E88D172 /* MessagingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagingViewModel.swift; sourceTree = "<group>"; };
-		E9AE3183F15AF88203927222 /* ViewModels_macOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ViewModels_macOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		F45CD25EF0080CCFC4B33183 /* ViewModels_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ViewModels_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		E9AE3183F15AF88203927222 /* ViewModels_macOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = ViewModels_macOS.framework; path = ViewModels.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		F45CD25EF0080CCFC4B33183 /* ViewModels_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; name = ViewModels_iOS.framework; path = ViewModels.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		FAD2187C71870BF1CBF4A5D0 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -366,6 +372,7 @@
 			isa = PBXGroup;
 			children = (
 				B4A77BB1A9BAFDA337B461B7 /* AuthView.swift */,
+				251E564A2FD1EE8E25A27F77 /* EmailLinkSignInView.swift */,
 				BD48C65B7FE8275519EE5EEC /* FavoritesView.swift */,
 				8C45B8A03E7C242106921A45 /* FeedView.swift */,
 				9957D359F347E8CF2B572E1D /* ForgotPasswordView.swift */,
@@ -417,7 +424,7 @@
 			children = (
 				B9FC0538A8BB344E1D68846D /* Core_iOS.framework */,
 				4BBB444A6F9018C414429894 /* Core_macOS.framework */,
-				A645FCA01E4CCC9DFFCFA9BE /* Dwell_iOS.app */,
+				A645FCA01E4CCC9DFFCFA9BE /* Dwell.app */,
 				6C3E0326AA95633E25E8F4F7 /* Dwell_macOS.app */,
 				F45CD25EF0080CCFC4B33183 /* ViewModels_iOS.framework */,
 				E9AE3183F15AF88203927222 /* ViewModels_macOS.framework */,
@@ -439,6 +446,7 @@
 			isa = PBXGroup;
 			children = (
 				20F3E659C943ABD14E9338CA /* Assets.xcassets */,
+				FAD2187C71870BF1CBF4A5D0 /* GoogleService-Info.plist */,
 				D6454136BE477F8A1AFE03C2 /* Preview Content */,
 				23CF4E9B8BDB16D9242D49CE /* Models */,
 				73126FEF300697792E858629 /* Services */,
@@ -557,7 +565,7 @@
 			);
 			name = Dwell_iOS;
 			productName = Dwell_iOS;
-			productReference = A645FCA01E4CCC9DFFCFA9BE /* Dwell_iOS.app */;
+			productReference = A645FCA01E4CCC9DFFCFA9BE /* Dwell.app */;
 			productType = "com.apple.product-type.application";
 		};
 		C23005BF0034E3C1EE3D29D5 /* Core_macOS */ = {
@@ -625,8 +633,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 8ABF9A191BDC2FA95864CC49 /* Build configuration list for PBXProject "Dwell" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -661,6 +667,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C5D2CD25D9168B1521CED9C1 /* Assets.xcassets in Resources */,
+				E7314E79D5C0F053FCFAF1FB /* GoogleService-Info.plist in Resources */,
 				807CC1A02F3DD4009D324C44 /* Preview Content in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -670,6 +677,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BCB2C9D0C96A3D1B7052AA1E /* Assets.xcassets in Resources */,
+				FC475C47C5ED2CE5025C74C5 /* GoogleService-Info.plist in Resources */,
 				B864FACBD468D483661637FD /* Preview Content in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -682,6 +690,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				6B181E76FB1B45744C83B723 /* AuthView.swift in Sources */,
+				99E9BF2A5DFC02AEB5F5B5D8 /* EmailLinkSignInView.swift in Sources */,
 				5336871C6441492D9D0F3FDA /* FavoritesView.swift in Sources */,
 				E703B639B73C0E8E29C643F0 /* FeedView.swift in Sources */,
 				3D76CA0A9244DD60FE9C0F9D /* ForgotPasswordView.swift in Sources */,
@@ -733,6 +742,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EF17D2D5E60CA420CA9BF636 /* AuthView.swift in Sources */,
+				96FFB97FBE49749787914C91 /* EmailLinkSignInView.swift in Sources */,
 				500C75BB67F823357879E07F /* FavoritesView.swift in Sources */,
 				BE0814411B153B16F13F40B1 /* FeedView.swift in Sources */,
 				455974EAA540A69C9AF9ECCE /* ForgotPasswordView.swift in Sources */,
@@ -881,9 +891,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gauntletai.Core;
 				PRODUCT_MODULE_NAME = Core;
 				PRODUCT_NAME = Core;
@@ -972,9 +980,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gauntletai.Core;
 				PRODUCT_MODULE_NAME = Core;
 				PRODUCT_NAME = Core;
@@ -988,21 +994,25 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "Sources/Preview\\ Content";
+				DEVELOPMENT_TEAM = 3NLDQ8UN8A;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
 				);
 				INFOPLIST_FILE = Sources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.0.0;
-				OTHER_LDFLAGS = (
-					"-ObjC",
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gauntletai.dwell;
 				PRODUCT_NAME = Dwell;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -1025,9 +1035,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gauntletai.Core;
 				PRODUCT_MODULE_NAME = Core;
 				PRODUCT_NAME = Core;
@@ -1073,21 +1081,25 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "Sources/Preview\\ Content";
+				DEVELOPMENT_TEAM = 3NLDQ8UN8A;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
 				);
 				INFOPLIST_FILE = Sources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.0.0;
-				OTHER_LDFLAGS = (
-					"-ObjC",
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gauntletai.dwell;
 				PRODUCT_NAME = Dwell;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -1224,11 +1236,12 @@
 					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
 				);
 				INFOPLIST_FILE = Sources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0.0;
-				OTHER_LDFLAGS = (
-					"-ObjC",
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
 				);
+				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gauntletai.dwell;
 				PRODUCT_NAME = Dwell;
 				SDKROOT = macosx;
@@ -1247,11 +1260,12 @@
 					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
 				);
 				INFOPLIST_FILE = Sources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0.0;
-				OTHER_LDFLAGS = (
-					"-ObjC",
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
 				);
+				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gauntletai.dwell;
 				PRODUCT_NAME = Dwell;
 				SDKROOT = macosx;
@@ -1275,9 +1289,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gauntletai.Core;
 				PRODUCT_MODULE_NAME = Core;
 				PRODUCT_NAME = Core;

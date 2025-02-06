@@ -33,7 +33,7 @@ struct ForgotPasswordView: View {
                     Task {
                         do {
                             try await appViewModel.authViewModel.resetPassword(email: email)
-                            alertMessage = "Password reset email sent. Please check your inbox."
+                            alertMessage = "Password reset email sent. Please check your inbox and follow the instructions to reset your password."
                             showAlert = true
                         } catch {
                             alertMessage = error.localizedDescription
@@ -41,31 +41,40 @@ struct ForgotPasswordView: View {
                         }
                     }
                 } label: {
-                    Text("Send Reset Link")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+                    if appViewModel.authViewModel.isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                    } else {
+                        Text("Send Reset Link")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
                 }
                 .padding(.horizontal)
-                .disabled(email.isEmpty)
+                .disabled(email.isEmpty || appViewModel.authViewModel.isLoading)
                 
                 Spacer()
             }
             .padding(.top, 50)
+            .alert(isPresented: $showAlert) {
+                Alert(
+                    title: Text(alertMessage.contains("sent") ? "Success" : "Error"),
+                    message: Text(alertMessage),
+                    dismissButton: .default(Text("OK")) {
+                        if alertMessage.contains("sent") {
+                            dismiss()
+                        }
+                    }
+                )
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
-                }
-            }
-        }
-        .alert(alertMessage, isPresented: $showAlert) {
-            Button("OK") {
-                if !alertMessage.contains("error") {
-                    dismiss()
                 }
             }
         }

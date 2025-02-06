@@ -5,35 +5,42 @@ import Combine
 @MainActor
 public class AuthViewModel: ObservableObject {
     @Published public var currentUser: User?
-    @Published public var isLoading = false
-    @Published public var error: Error?
     @Published public var isAuthenticated = false
+    @Published public var error: Error?
+    @Published public var isLoading = false
     @Published public var showError = false
+    @Published public var isEmailLinkSent = false
     
     private var authService: AuthService!
     private var cancellables = Set<AnyCancellable>()
     
-    public init(authService: AuthService? = nil) {
-        if let authService = authService {
-            self.authService = authService
-        } else {
+    public nonisolated init() {
+        Task { @MainActor in
             self.authService = AuthService()
+            setupAuthService()
         }
-        
-        // Subscribe to auth state changes
-        self.authService.$currentUser
+    }
+    
+    @MainActor
+    private func setupAuthService() {
+        // Observe auth state changes
+        authService.$currentUser
             .receive(on: DispatchQueue.main)
             .sink { [weak self] user in
-                self?.currentUser = user
-                self?.isAuthenticated = user != nil
+                guard let self = self else { return }
+                print("🔐 Auth state change received - User: \(user?.email ?? "nil")")
+                self.currentUser = user
+                withAnimation {
+                    self.isAuthenticated = user != nil
+                }
+                print("🔐 Auth state updated - isAuthenticated: \(user != nil)")
+                objectWillChange.send()  // Force UI update
             }
             .store(in: &cancellables)
-            
-        // Subscribe to error changes to automatically show error alert
-        $error
-            .receive(on: DispatchQueue.main)
-            .map { $0 != nil }
-            .assign(to: &$showError)
+    }
+    
+    private func ensureServiceInitialized() {
+        assert(authService != nil, "AuthService not initialized. Ensure all auth operations are performed after initialization.")
     }
     
     public func validatePassword(_ password: String) -> Bool {
@@ -41,48 +48,70 @@ public class AuthViewModel: ObservableObject {
         return password.count >= 8 && password.contains { $0.isNumber }
     }
     
+    public func clearError() {
+        error = nil
+        showError = false
+    }
+    
+    private func handleError(_ error: Error) {
+        self.error = error
+        self.showError = true
+        self.isLoading = false
+    }
+    
     public func signIn(email: String, password: String) async throws {
+        ensureServiceInitialized()
         guard !isLoading else { return }
         guard !email.isEmpty && !password.isEmpty else {
-            self.error = AuthError.signInError("Email and password are required")
+            handleError(AuthError.signInError("Email and password are required"))
             return
         }
         
         isLoading = true
-        error = nil
+        clearError()
         
         do {
+            print("📝 Starting sign in process...")
             try await authService.signIn(email: email, password: password)
-            isLoading = false
+            await MainActor.run {
+                print("✅ Sign in successful, updating isAuthenticated...")
+                withAnimation {
+                    self.isAuthenticated = true
+                }
+                objectWillChange.send()  // Force UI update
+                print("✅ isAuthenticated set to true")
+            }
         } catch {
-            isLoading = false
-            self.error = error
+            handleError(error)
             throw error
         }
+        
+        isLoading = false
     }
     
     public func signUp(email: String, password: String, name: String) async throws {
         guard !isLoading else { return }
         guard !email.isEmpty && !password.isEmpty && !name.isEmpty else {
-            self.error = AuthError.signUpError("All fields are required")
+            handleError(AuthError.signUpError("All fields are required"))
             return
         }
+        
         guard validatePassword(password) else {
-            self.error = AuthError.signUpError("Password must be at least 8 characters long and contain at least one number")
+            handleError(AuthError.signUpError("Password must be at least 8 characters and contain at least one number"))
             return
         }
         
         isLoading = true
-        error = nil
+        clearError()
         
         do {
             try await authService.signUp(email: email, password: password, name: name)
-            isLoading = false
         } catch {
-            isLoading = false
-            self.error = error
+            handleError(error)
             throw error
         }
+        
+        isLoading = false
     }
     
     public func signOut() async throws {
@@ -105,21 +134,21 @@ public class AuthViewModel: ObservableObject {
     public func resetPassword(email: String) async throws {
         guard !isLoading else { return }
         guard !email.isEmpty else {
-            self.error = AuthError.resetPasswordError("Email is required")
+            handleError(AuthError.resetPasswordError("Email is required"))
             return
         }
         
         isLoading = true
-        error = nil
+        clearError()
         
         do {
             try await authService.resetPassword(email: email)
-            isLoading = false
         } catch {
-            isLoading = false
-            self.error = error
+            handleError(error)
             throw error
         }
+        
+        isLoading = false
     }
     
     public func updatePassword(newPassword: String) async throws {
@@ -159,7 +188,64 @@ public class AuthViewModel: ObservableObject {
         }
     }
     
-    public func clearError() {
-        error = nil
+    public func sendSignInLink(email: String) async throws {
+        guard !isLoading else { return }
+        guard !email.isEmpty else {
+            handleError(AuthError.signInError("Email is required"))
+            return
+        }
+        
+        isLoading = true
+        clearError()
+        
+        do {
+            try await authService.sendSignInLink(toEmail: email)
+            isEmailLinkSent = true
+        } catch {
+            handleError(error)
+            throw error
+        }
+        
+        isLoading = false
+    }
+    
+    public func signInWithEmailLink(email: String, link: String) async throws {
+        guard !isLoading else { return }
+        guard !email.isEmpty && !link.isEmpty else {
+            handleError(AuthError.signInError("Email and link are required"))
+            return
+        }
+        
+        isLoading = true
+        clearError()
+        
+        do {
+            try await authService.signInWithEmailLink(email: email, link: link)
+        } catch {
+            handleError(error)
+            throw error
+        }
+        
+        isLoading = false
+    }
+    
+    public func linkWithEmailLink(email: String, link: String) async throws {
+        guard !isLoading else { return }
+        guard !email.isEmpty && !link.isEmpty else {
+            handleError(AuthError.signInError("Email and link are required"))
+            return
+        }
+        
+        isLoading = true
+        clearError()
+        
+        do {
+            try await authService.linkWithEmailLink(email: email, link: link)
+        } catch {
+            handleError(error)
+            throw error
+        }
+        
+        isLoading = false
     }
 } 

@@ -175,6 +175,9 @@ targets:
       - path: Sources/Preview Content
         type: folder
         buildPhase: resources
+      - path: GoogleService-Info.plist
+        type: file
+        buildPhase: resources
     dependencies:
       - target: Core_iOS
         link: true
@@ -215,6 +218,9 @@ targets:
         buildPhase: resources
       - path: Sources/Preview Content
         type: folder
+        buildPhase: resources
+      - path: GoogleService-Info.plist
+        type: file
         buildPhase: resources
     dependencies:
       - target: Core_macOS

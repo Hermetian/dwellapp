@@ -22,18 +22,21 @@ public class AuthService: ObservableObject {
     
     private func setupAuthStateHandler() {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            print("🔥 Firebase Auth State Changed - User: \(user?.uid ?? "nil")")
             if let user = user {
                 Task { [weak self] in
                     do {
                         try await self?.fetchUser(userId: user.uid)
+                        print("✅ Successfully fetched user data for: \(user.uid)")
                     } catch {
-                        print("Error fetching user: \(error)")
+                        print("❌ Error fetching user: \(error)")
                         if let self = self {
                             self.currentUser = nil
                         }
                     }
                 }
             } else {
+                print("👤 User signed out or no user")
                 self?.currentUser = nil
             }
         }
@@ -48,11 +51,29 @@ public class AuthService: ObservableObject {
     }
     
     public func signIn(email: String, password: String) async throws {
+        print("🔑 Attempting sign in for email: \(email)")
         do {
             let result = try await auth.signIn(withEmail: email, password: password)
+            print("✅ Successfully signed in user: \(result.user.uid)")
             try await fetchUser(userId: result.user.uid)
-        } catch {
-            throw AuthError.signInError(error.localizedDescription)
+        } catch let error as NSError {
+            print("❌ Sign in error: \(error)")
+            if error.domain == AuthErrorDomain {
+                switch error.code {
+                case AuthErrorCode.wrongPassword.rawValue:
+                    throw AuthError.signInError("Incorrect password")
+                case AuthErrorCode.userNotFound.rawValue:
+                    throw AuthError.signInError("No account found with this email")
+                case AuthErrorCode.invalidEmail.rawValue:
+                    throw AuthError.signInError("Please enter a valid email address")
+                case AuthErrorCode.userDisabled.rawValue:
+                    throw AuthError.signInError("This account has been disabled")
+                default:
+                    throw AuthError.signInError("Failed to sign in: \(error.localizedDescription)")
+                }
+            } else {
+                throw AuthError.signInError("An unexpected error occurred: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -60,13 +81,32 @@ public class AuthService: ObservableObject {
         do {
             let result = try await auth.createUser(withEmail: email, password: password)
             let user = User(id: result.user.uid,
-                                 email: email,
-                                 name: name)
+                          email: email,
+                          name: name,
+                          favoriteListings: [],
+                          createdAt: Date(),
+                          updatedAt: Date())
             
-            try db.collection("users").document(result.user.uid).setData(from: user)
+            try await db.collection("users").document(result.user.uid).setData(from: user)
             try await fetchUser(userId: result.user.uid)
-        } catch {
-            throw AuthError.signUpError(error.localizedDescription)
+        } catch let error as NSError {
+            print("Sign up error: \(error)")
+            if error.domain == AuthErrorDomain {
+                switch error.code {
+                case AuthErrorCode.emailAlreadyInUse.rawValue:
+                    throw AuthError.signUpError("This email is already registered")
+                case AuthErrorCode.invalidEmail.rawValue:
+                    throw AuthError.signUpError("Please enter a valid email address")
+                case AuthErrorCode.weakPassword.rawValue:
+                    throw AuthError.signUpError("Please choose a stronger password")
+                default:
+                    throw AuthError.signUpError("Failed to create account: \(error.localizedDescription)")
+                }
+            } else if error.domain == FirestoreErrorDomain {
+                throw AuthError.signUpError("Failed to save user data. Please try again.")
+            } else {
+                throw AuthError.signUpError("An unexpected error occurred: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -82,8 +122,20 @@ public class AuthService: ObservableObject {
     public func resetPassword(email: String) async throws {
         do {
             try await auth.sendPasswordReset(withEmail: email)
-        } catch {
-            throw AuthError.resetPasswordError(error.localizedDescription)
+        } catch let error as NSError {
+            print("Password reset error: \(error)")
+            if error.domain == AuthErrorDomain {
+                switch error.code {
+                case AuthErrorCode.userNotFound.rawValue:
+                    throw AuthError.resetPasswordError("No account found with this email")
+                case AuthErrorCode.invalidEmail.rawValue:
+                    throw AuthError.resetPasswordError("Please enter a valid email address")
+                default:
+                    throw AuthError.resetPasswordError("Failed to send reset email: \(error.localizedDescription)")
+                }
+            } else {
+                throw AuthError.resetPasswordError("An unexpected error occurred: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -111,6 +163,75 @@ public class AuthService: ObservableObject {
             currentUser = nil as User?
         } catch {
             throw AuthError.deleteAccountError(error.localizedDescription)
+        }
+    }
+    
+    public func sendSignInLink(toEmail email: String) async throws {
+        let actionCodeSettings = ActionCodeSettings()
+        // Use the full Dynamic Links URL pattern
+        actionCodeSettings.url = URL(string: "https://dwell.page.link/email-signin")
+        actionCodeSettings.handleCodeInApp = true
+        actionCodeSettings.setIOSBundleID("com.gauntletai.dwell")
+        actionCodeSettings.dynamicLinkDomain = "dwell.page.link"
+        
+        do {
+            print("🔗 Attempting to send sign-in link to \(email)")
+            print("📱 Bundle ID: \(Bundle.main.bundleIdentifier ?? "unknown")")
+            print("🌐 Redirect URL: \(actionCodeSettings.url?.absoluteString ?? "unknown")")
+            print("🔗 Dynamic Link Domain: \(actionCodeSettings.dynamicLinkDomain ?? "unknown")")
+            
+            try await Auth.auth().sendSignInLink(toEmail: email,
+                                               actionCodeSettings: actionCodeSettings)
+            print("✅ Successfully sent sign-in link")
+            // Save the email locally
+            UserDefaults.standard.set(email, forKey: "emailForSignIn")
+        } catch let error as NSError {
+            print("❌ Detailed error: \(error)")
+            print("❌ Error domain: \(error.domain)")
+            print("❌ Error code: \(error.code)")
+            print("❌ Error user info: \(error.userInfo)")
+            throw AuthError.signInError("Failed to send sign in link: \(error.localizedDescription)")
+        }
+    }
+    
+    public func signInWithEmailLink(email: String, link: String) async throws {
+        guard Auth.auth().isSignIn(withEmailLink: link) else {
+            throw AuthError.signInError("Invalid sign in link")
+        }
+        
+        do {
+            let result = try await Auth.auth().signIn(withEmail: email, link: link)
+            // Create a new user document if this is a new user
+            if result.additionalUserInfo?.isNewUser == true {
+                let user = User(id: result.user.uid,
+                              email: email,
+                              name: email.components(separatedBy: "@").first ?? "User",
+                              favoriteListings: [],
+                              createdAt: Date(),
+                              updatedAt: Date())
+                try await db.collection("users").document(result.user.uid).setData(from: user)
+            }
+            try await fetchUser(userId: result.user.uid)
+        } catch {
+            throw AuthError.signInError("Failed to sign in with email link: \(error.localizedDescription)")
+        }
+    }
+    
+    // For existing users to link email authentication to their account
+    public func linkWithEmailLink(email: String, link: String) async throws {
+        guard let user = auth.currentUser else {
+            throw AuthError.userNotFound
+        }
+        
+        guard Auth.auth().isSignIn(withEmailLink: link) else {
+            throw AuthError.signInError("Invalid sign in link")
+        }
+        
+        do {
+            let credential = EmailAuthProvider.credential(withEmail: email, link: link)
+            _ = try await user.link(with: credential)
+        } catch {
+            throw AuthError.signInError("Failed to link email authentication: \(error.localizedDescription)")
         }
     }
 }

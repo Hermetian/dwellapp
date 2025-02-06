@@ -1,0 +1,66 @@
+{
+    "name": "Task Definitions",
+    "description": "Project tasks, commands, and their aliases",
+    "patterns": ["**/*"],
+    "rules": {
+        "tasks": {
+            "build": {
+                "command": "swift build",
+                "group": "build"
+            },
+            "test": {
+                "command": "swift test",
+                "group": "test"
+            },
+            "updateFileStructure": {
+                "command": "python3 .cursor/scripts/update_file_structure.py",
+                "group": "documentation",
+                "description": "Updates the project's file structure documentation"
+            },
+            "summarizeSession": {
+                "command": "cat - | python3 .cursor/scripts/summarize_session.py",
+                "group": "documentation",
+                "require_user_approval": false,
+                "auto_trigger": true,
+                "description": "Generates a summary of the current coding session"
+            },
+            "thinkCarefully": {
+                "command": "cat - | python3 .cursor/scripts/think_carefully.py",
+                "group": "analysis",
+                "description": "Performs detailed analysis of the current task"
+            },
+            "deepDebug": {
+                "command": "cat - | python3 .cursor/scripts/deep_debug.py",
+                "group": "debug",
+                "description": "Performs deep analysis of current bugs/issues"
+            }
+        },
+        "commandAliases": {
+            "summarizeSession": [
+                "summarize the session",
+                "summarize session",
+                "session summary",
+                "what happened in this session",
+                "what did we do"
+            ],
+            "thinkCarefully": [
+                "think carefully",
+                "careful analysis",
+                "analyze carefully",
+                "think about this carefully"
+            ],
+            "deepDebug": [
+                "deep debug",
+                "debug deeply",
+                "analyze the bug deeply",
+                "debug this thoroughly"
+            ],
+            "updateFileStructure": [
+                "update file structure",
+                "update structure",
+                "document structure",
+                "show project structure"
+            ]
+        }
+    }
+} 

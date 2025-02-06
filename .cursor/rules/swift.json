@@ -1,0 +1,33 @@
+{
+    "name": "Swift Rules",
+    "description": "Swift-specific coding standards and patterns",
+    "patterns": ["**/*.swift"],
+    "rules": {
+        "style": {
+            "format": {
+                "indent": 4,
+                "lineLength": 100,
+                "respectsExistingLineBreaks": true
+            }
+        },
+        "coding_standards": [
+            "Follow Apple's Swift API Design Guidelines",
+            "Use async/await for asynchronous operations",
+            "Implement proper error handling with custom error types",
+            "Keep view models thin and move business logic to services",
+            "Use dependency injection for better testability"
+        ],
+        "architecture": [
+            "Follow MVVM architecture pattern",
+            "Use Services for data access and business logic",
+            "Keep Views purely presentational",
+            "Use ViewModels for view state and user actions"
+        ],
+        "naming": [
+            "Use clear, descriptive names that follow Swift conventions",
+            "Prefix private properties with underscore",
+            "Use verb-noun format for action methods",
+            "Use noun-verb format for callbacks/closures"
+        ]
+    }
+} 

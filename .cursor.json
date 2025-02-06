@@ -1,0 +1,196 @@
+{
+    "project": {
+        "name": "DwellApp",
+        "description": "A Swift-based property management application",
+        "type": "swift",
+        "version": "1.0.0",
+        "root": ".",
+        "mainBranch": "main"
+    },
+    "style": {
+        "swift": {
+            "format": {
+                "indent": 4,
+                "lineLength": 100,
+                "respectsExistingLineBreaks": true
+            }
+        },
+        "formatOnSave": true,
+        "defaultFormatter": "swift-format"
+    },
+    "rules": {
+        "general": [
+            "This is a Swift-based iOS application using SwiftUI and Firebase",
+            "Follow Apple's Swift API Design Guidelines",
+            "Use async/await for asynchronous operations",
+            "Implement proper error handling with custom error types",
+            "Keep view models thin and move business logic to services",
+            "Use dependency injection for better testability"
+        ],
+        "architecture": [
+            "Follow MVVM architecture pattern",
+            "Use Services for data access and business logic",
+            "Keep Views purely presentational",
+            "Use ViewModels for view state and user actions"
+        ],
+        "naming": [
+            "Use clear, descriptive names that follow Swift conventions",
+            "Prefix private properties with underscore",
+            "Use verb-noun format for action methods",
+            "Use noun-verb format for callbacks/closures"
+        ]
+    },
+    "ignore": [
+        ".git",
+        "build",
+        ".build",
+        "*.generated.swift",
+        "Pods"
+    ],
+    "search": {
+        "exclude": [
+            ".git",
+            "build",
+            ".build",
+            "*.generated.swift",
+            "Pods"
+        ]
+    },
+    "tasks": {
+        "build": {
+            "command": "swift build",
+            "group": "build"
+        },
+        "test": {
+            "command": "swift test",
+            "group": "test"
+        },
+        "summarizeSession": {
+            "command": "cat - | python3 summarize_session.py",
+            "group": "documentation",
+            "require_user_approval": false,
+            "auto_trigger": true,
+            "description": "Generates a summary of the current coding session"
+        },
+        "thinkCarefully": {
+            "command": "cat - | python3 think_carefully.py",
+            "group": "analysis",
+            "description": "Performs detailed analysis of the current task"
+        },
+        "deepDebug": {
+            "command": "cat - | python3 deep_debug.py",
+            "group": "debug",
+            "description": "Performs deep analysis of current bugs/issues"
+        }
+    },
+    "commandAliases": {
+        "summarizeSession": [
+            "summarize the session",
+            "summarize session",
+            "session summary",
+            "what happened in this session",
+            "what did we do"
+        ],
+        "thinkCarefully": [
+            "think carefully",
+            "careful analysis",
+            "analyze carefully",
+            "think about this carefully"
+        ],
+        "deepDebug": [
+            "deep debug",
+            "debug deeply",
+            "analyze the bug deeply",
+            "debug this thoroughly"
+        ]
+    },
+    "fileAssociations": {
+        "*.swift": "swift",
+        "*.json": "json",
+    "project": {
+        "name": "DwellApp",
+        "root": ".",
+        "mainBranch": "main",
+        "buildCommand": "swift build",
+        "testCommand": "swift test",
+        "exclude": [
+            "*.generated.swift",
+            "build/*",
+            ".build/*"
+        ],
+        "fileAssociations": {
+            "*.swift": "swift"
+        },
+        "commandAliases": {
+            "summarizeSession": [
+                "summarize the session",
+                "summarize session",
+                "session summary",
+                "summarize this session",
+                "summarize our session",
+                "what happened in this session",
+                "what did we do",
+                "what have we done",
+                "session overview"
+            ],
+            "thinkCarefully": [
+                "think carefully",
+                "careful analysis",
+                "analyze carefully",
+                "think about this carefully",
+                "consider carefully",
+                "careful consideration",
+                "thorough analysis"
+            ],
+            "deepDebug": [
+                "deep debug",
+                "deep fix",
+                "debug deeply",
+                "deep debugging",
+                "deep analysis of the bug",
+                "analyze the bug deeply",
+                "debug this thoroughly"
+            ]
+        },
+        "tasks": {
+            "build": {
+                "command": "swift build",
+                "group": "build"
+            },
+            "test": {
+                "command": "swift test",
+                "group": "test"
+            },
+            "updateFileStructure": {
+                "command": "echo '# DwellApp Project Structure\\n\\nGenerated on: ' $(date) > filestructure.md && tree -I '.build|Dwell.xcodeproj' --dirsfirst -F >> filestructure.md",
+                "group": "documentation"
+            },
+            "summarizeSession": {
+                "command": "cat - | python3 summarize_session.py",
+                "group": "documentation",
+                "require_user_approval": false,
+                "auto_trigger": true
+            },
+            "deepDebug": {
+                "command": "python3 -c 'import sys, re, json, datetime\\ndef deep_debug():\\n    context = sys.stdin.read()\\n    # Extract the current error being worked on\\n    current_error = re.findall(r\"(?:error|bug|issue)[^\\\\n.]*[\\\\n.][^\\\\n.]*\", context, re.I)[-1] if re.findall(r\"(?:error|bug|issue)[^\\\\n.]*[\\\\n.][^\\\\n.]*\", context, re.I) else \"\"\\n    # Search bugfixes.md for similar issues\\n    similar_issues = []\\n    try:\\n        with open(\"bugfixes.md\", \"r\") as f:\\n            bugfixes = f.read()\\n            if current_error:\\n                words = set(re.findall(r\"\\\\w+\", current_error.lower()))\\n                for issue in re.findall(r\"- ERROR:.*(?:\\\\n(?!##|-).*)*\", bugfixes, re.M):\\n                    if any(word in issue.lower() for word in words):\\n                        similar_issues.append(issue)\\n    except FileNotFoundError:\\n        pass\\n    # Analyze previous attempts in context\\n    attempts = re.findall(r\"(?:try|attempt|fix|solve)[^\\\\n.]*(?:[\\\\n.][^\\\\n.]*){0,3}\", context, re.I)\\n    # Look for patterns in failed attempts\\n    patterns = {}\\n    for attempt in attempts:\\n        for word in re.findall(r\"\\\\w+\", attempt.lower()):\\n            patterns[word] = patterns.get(word, 0) + 1\\n    # Generate deep debug report\\n    with open(\"deep_debug_report.md\", \"w\") as f:\\n        f.write(f\"# Deep Debug Report - {datetime.datetime.now().strftime(\"%Y-%m-%d %H:%M\")}\\\\n\\\\n\")\\n        if current_error:\\n            f.write(f\"## Current Error\\\\n{current_error}\\\\n\\\\n\")\\n        if similar_issues:\\n            f.write(\"## Similar Issues Found in History\\\\n\")\\n            for issue in similar_issues:\\n                f.write(f\"{issue}\\\\n\")\\n        if attempts:\\n            f.write(\"\\\\n## Previous Attempts\\\\n\")\\n            for i, attempt in enumerate(attempts, 1):\\n                f.write(f\"{i}. {attempt}\\\\n\")\\n        if patterns:\\n            f.write(\"\\\\n## Common Patterns in Attempts\\\\n\")\\n            for word, count in sorted(patterns.items(), key=lambda x: x[1], reverse=True)[:10]:\\n                if count > 1 and len(word) > 3:\\n                    f.write(f\"- {word}: appeared {count} times\\\\n\")\\n        f.write(\"\\\\n## Suggested Deep Debug Steps\\\\n\")\\n        f.write(\"1. Review stack traces and logs thoroughly\\\\n\")\\n        f.write(\"2. Set up comprehensive logging\\\\n\")\\n        f.write(\"3. Create minimal reproduction case\\\\n\")\\n        f.write(\"4. Check related dependencies\\\\n\")\\n        f.write(\"5. Review similar issues in history\\\\n\")\\n        f.write(\"6. Consider environmental factors\\\\n\")\\n        f.write(\"7. Add debug assertions\\\\n\")\\n        f.write(\"8. Use step-by-step debugger\\\\n\")\\n        # Add warning if we see repeated patterns\\n        if any(count > 2 for count in patterns.values()):\\n            f.write(\"\\\\n⚠️ Warning: Some approaches have been tried multiple times without success. Consider a completely different approach.\\\\n\")\\ndeep_debug()' < /dev/stdin",
+                "group": "debug"
+            },
+            "thinkCarefully": {
+                "command": "cat - | python3 think_carefully.py",
+                "group": "analysis"
+            },
+            "autoAnalyze": {
+                "command": "for task in thinkCarefully updateFileStructure summarizeSession; do echo \"Running $task...\"; if [ -f \"${task}.py\" ]; then cat - | python3 \"${task}.py\"; else eval \"$(grep \"^    \\\"$task\\\"\" .cursor | sed 's/.*command\": \"\\(.*\\)\".*/\\1/')\"; fi; done",
+                "group": "analysis"
+            },
+            "chainAnalysis": {
+                "command": "echo '<user_query>analyze project structure</user_query>' | python3 think_carefully.py && echo '<user_query>analyze dependencies</user_query>' | python3 think_carefully.py && echo '<user_query>analyze security</user_query>' | python3 think_carefully.py",
+                "group": "analysis"
+            },
+            "runScript": {
+                "command": "SCRIPT=$1; if [ -f \"${SCRIPT}.py\" ]; then python3 \"${SCRIPT}.py\"; else eval \"$(grep \"^    \\\"$SCRIPT\\\"\" .cursor | sed 's/.*command\": \"\\(.*\\)\".*/\\1/')\"; fi",
+                "group": "automation"
+            }
+        }
+    }
+} 

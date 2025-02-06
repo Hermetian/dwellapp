@@ -11,6 +11,7 @@ public struct AuthView: View {
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var showForgotPassword = false
+    @State private var showEmailLinkSignIn = false
     
     public var body: some View {
         NavigationView {
@@ -74,8 +75,17 @@ public struct AuthView: View {
                     }
                     
                     if !isSignUp {
-                        Button("Forgot Password?") {
-                            showForgotPassword = true
+                        HStack {
+                            Button("Forgot Password?") {
+                                showForgotPassword = true
+                            }
+                            
+                            Text("•")
+                                .foregroundColor(.gray)
+                            
+                            Button("Sign in with Email Link") {
+                                showEmailLinkSignIn = true
+                            }
                         }
                         .foregroundColor(.blue)
                     }
@@ -91,6 +101,9 @@ public struct AuthView: View {
         }
         .sheet(isPresented: $showForgotPassword) {
             ForgotPasswordView()
+        }
+        .sheet(isPresented: $showEmailLinkSignIn) {
+            EmailLinkSignInView(authViewModel: appViewModel.authViewModel)
         }
     }
     
