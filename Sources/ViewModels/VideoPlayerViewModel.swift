@@ -22,34 +22,33 @@ public class VideoPlayerViewModel: ObservableObject {
     @Published public var thumbnailImage: UIImage?
     #endif
     
-    private var videoService: VideoService!
+    private var videoService: VideoService?
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var cancellables = Set<AnyCancellable>()
     
     public nonisolated init(videoService: VideoService? = nil) {
-        if let videoService = videoService {
-            self.videoService = videoService
-        }
+        self.videoService = videoService
         Task { @MainActor in
-            if self.videoService == nil {
-                self.videoService = VideoService()
-            }
-            self.setup()
+            await self.setup()
         }
     }
     
-    private func setup() {
-        // Setup code here
+    @MainActor
+    private func setup() async {
+        if videoService == nil {
+            videoService = VideoService()
+        }
     }
     
     public nonisolated func cleanup() {
         Task { @MainActor in
-            self._cleanup()
+            await self._cleanup()
         }
     }
     
-    private func _cleanup() {
+    @MainActor
+    private func _cleanup() async {
         if let timeObserver = timeObserver {
             player?.removeTimeObserver(timeObserver)
         }
@@ -58,23 +57,10 @@ public class VideoPlayerViewModel: ObservableObject {
         cancellables.removeAll()
     }
     
-    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
-    private func generateThumbnail(from url: URL) async throws -> UIImage? {
-        let asset = AVAsset(url: url)
-        let imageGenerator = AVAssetImageGenerator(asset: asset)
-        imageGenerator.appliesPreferredTrackTransform = true
-        
-        let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
-        return UIImage(cgImage: cgImage)
-    }
-    #else
-    private func generateThumbnail(from url: URL) async throws -> Any? {
-        throw NSError(domain: "VideoPlayerViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Thumbnail generation not available on this platform"])
-    }
-    #endif
-    
     public func setupPlayer(with url: URL) async throws {
         guard !isLoading else { throw NSError(domain: "VideoPlayerViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
+        guard let videoService = videoService else { throw NSError(domain: "VideoPlayerViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "VideoService not initialized"]) }
+        
         isLoading = true
         error = nil
         
@@ -84,7 +70,7 @@ public class VideoPlayerViewModel: ObservableObject {
             
             #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
             // Generate thumbnail
-            thumbnailImage = try await generateThumbnail(from: url)
+            thumbnailImage = try await videoService.generateThumbnail(from: url)
             #endif
             
             // Setup player
@@ -160,74 +146,6 @@ public class VideoPlayerViewModel: ObservableObject {
         }
         isMuted.toggle()
         player.isMuted = isMuted
-    }
-    
-    // Video processing functions
-    
-    public func trimVideo(at url: URL, startTime: TimeInterval, endTime: TimeInterval) async throws -> URL {
-        guard !isLoading else { throw NSError(domain: "VideoPlayerViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
-        isLoading = true
-        error = nil
-        
-        do {
-            let startCMTime = CMTime(seconds: startTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-            let endCMTime = CMTime(seconds: endTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-            let result = try await videoService.trimVideo(url: url, startTime: startCMTime, endTime: endCMTime)
-            isLoading = false
-            return result
-        } catch {
-            self.error = error
-            isLoading = false
-            throw error
-        }
-    }
-    
-    public func compressVideo(at url: URL) async throws -> URL {
-        guard !isLoading else { throw NSError(domain: "VideoPlayerViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
-        isLoading = true
-        error = nil
-        
-        do {
-            let result = try await videoService.compressVideo(url: url)
-            isLoading = false
-            return result
-        } catch {
-            self.error = error
-            isLoading = false
-            throw error
-        }
-    }
-    
-    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
-    public func extractFrame(from url: URL, at time: TimeInterval) async throws -> UIImage {
-        let cmTime = CMTime(seconds: time, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        let asset = AVAsset(url: url)
-        let imageGenerator = AVAssetImageGenerator(asset: asset)
-        imageGenerator.appliesPreferredTrackTransform = true
-        
-        let cgImage = try imageGenerator.copyCGImage(at: cmTime, actualTime: nil)
-        return UIImage(cgImage: cgImage)
-    }
-    #else
-    public func extractFrame(from url: URL, at time: TimeInterval) async throws -> Any {
-        throw NSError(domain: "VideoPlayerViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Frame extraction not available on this platform"])
-    }
-    #endif
-    
-    public func getVideoMetadata(for url: URL) async throws -> [String: Any] {
-        guard !isLoading else { throw NSError(domain: "VideoPlayerViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
-        isLoading = true
-        error = nil
-        
-        do {
-            let result = try await videoService.getVideoMetadata(url: url)
-            isLoading = false
-            return result
-        } catch {
-            self.error = error
-            isLoading = false
-            throw error
-        }
     }
     
     deinit {

@@ -326,4 +326,120 @@ public class DatabaseService: ObservableObject {
         }
         try await updateFirestore()
     }
+    
+    // MARK: - Video Methods
+    
+    public func getVideosStream(limit: Int = 10, lastVideoId: String? = nil) -> AnyPublisher<[PropertyVideo], Error> {
+        var query = db.collection("videos")
+            .order(by: "uploadDate", descending: true)
+            .limit(to: limit)
+        
+        if let lastId = lastVideoId {
+            return Future { [weak self] promise in
+                guard let self = self else { return }
+                
+                Task {
+                    do {
+                        let lastDoc = try await self.db.collection("videos").document(lastId).getDocument()
+                        query = query.start(afterDocument: lastDoc)
+                        
+                        let listener = query.addSnapshotListener { querySnapshot, error in
+                            if let error = error {
+                                promise(.failure(error))
+                                return
+                            }
+                            
+                            guard let documents = querySnapshot?.documents else {
+                                promise(.success([]))
+                                return
+                            }
+                            
+                            do {
+                                let videos = try documents.map { try $0.data(as: PropertyVideo.self) }
+                                promise(.success(videos))
+                            } catch {
+                                promise(.failure(error))
+                            }
+                        }
+                        
+                        self.store(listener: listener, for: "videos-\(lastId)")
+                    } catch {
+                        promise(.failure(error))
+                    }
+                }
+            }
+            .eraseToAnyPublisher()
+        }
+        
+        return Future { [weak self] promise in
+            guard let self = self else { return }
+            
+            let listener = query.addSnapshotListener { querySnapshot, error in
+                if let error = error {
+                    promise(.failure(error))
+                    return
+                }
+                
+                guard let documents = querySnapshot?.documents else {
+                    promise(.success([]))
+                    return
+                }
+                
+                do {
+                    let videos = try documents.map { try $0.data(as: PropertyVideo.self) }
+                    promise(.success(videos))
+                } catch {
+                    promise(.failure(error))
+                }
+            }
+            
+            self.store(listener: listener, for: "videos-all")
+        }
+        .eraseToAnyPublisher()
+    }
+    
+    public func getPropertyVideos(propertyId: String) -> AnyPublisher<[PropertyVideo], Error> {
+        Future { [weak self] promise in
+            guard let self = self else { return }
+            
+            let listener = self.db.collection("videos")
+                .whereField("propertyId", isEqualTo: propertyId)
+                .order(by: "uploadDate", descending: true)
+                .addSnapshotListener { querySnapshot, error in
+                    if let error = error {
+                        promise(.failure(error))
+                        return
+                    }
+                    
+                    guard let documents = querySnapshot?.documents else {
+                        promise(.success([]))
+                        return
+                    }
+                    
+                    do {
+                        let videos = try documents.map { try $0.data(as: PropertyVideo.self) }
+                        promise(.success(videos))
+                    } catch {
+                        promise(.failure(error))
+                    }
+                }
+            
+            self.store(listener: listener, for: "property-videos-\(propertyId)")
+        }
+        .eraseToAnyPublisher()
+    }
+    
+    public func createVideo(_ video: PropertyVideo) async throws -> String {
+        let docRef = try await db.collection("videos").addDocument(from: video)
+        return docRef.documentID
+    }
+    
+    public func updateVideo(_ video: PropertyVideo) async throws {
+        guard let id = video.id else { throw NSError(domain: "DatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Video ID not found"]) }
+        try await db.collection("videos").document(id).setData(from: video, merge: true)
+    }
+    
+    public func deleteVideo(id: String) async throws {
+        try await db.collection("videos").document(id).delete()
+    }
 } 
