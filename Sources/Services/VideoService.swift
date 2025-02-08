@@ -22,32 +22,76 @@ public class VideoService: ObservableObject {
         propertyId: String? = nil,
         userId: String
     ) async throws -> Video {
-        let videoData = try Data(contentsOf: url)
+        // Check file size
+        let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        let maxSize: Int64 = 100 * 1024 * 1024  // 100MB limit
+        
+        var videoData: Data
+        var finalURL = url
+        
+        if fileSize > maxSize {
+            // Compress video if it's too large
+            let compressedURL = try await compressVideo(url: url, quality: AVAssetExportPresetMediumQuality)
+            finalURL = compressedURL
+            videoData = try Data(contentsOf: compressedURL)
+        } else {
+            videoData = try Data(contentsOf: url)
+        }
+        
+        // Set metadata
+        let metadata = StorageMetadata()
+        metadata.contentType = "video/mp4"
+        
         let videoRef = storage.reference().child("videos/\(UUID().uuidString).mp4")
         
-        // Upload video
-        _ = try await videoRef.putDataAsync(videoData, metadata: nil)
-        let videoDownloadURL = try await videoRef.downloadURL()
-        
-        // Generate and upload thumbnail
-        let thumbnailURL = try await generateAndUploadThumbnail(from: url)
-        
-        // Create video object
-        let video = Video(
-            videoType: videoType,
-            propertyId: propertyId,
-            title: title,
-            description: description,
-            videoUrl: videoDownloadURL.absoluteString,
-            thumbnailUrl: thumbnailURL,
-            userId: userId
-        )
-        
-        // Save to Firestore
-        let docRef = db.collection("videos").document()
-        try docRef.setData(from: video)
-        
-        return video
+        do {
+            // Upload video with metadata
+            _ = try await videoRef.putDataAsync(videoData, metadata: metadata)
+            let videoDownloadURL = try await videoRef.downloadURL()
+            
+            // Generate and upload thumbnail
+            let thumbnailURL = try await generateAndUploadThumbnail(from: finalURL)
+            
+            // Create video object
+            let video = Video(
+                videoType: videoType,
+                propertyId: propertyId,
+                title: title,
+                description: description,
+                videoUrl: videoDownloadURL.absoluteString,
+                thumbnailUrl: thumbnailURL,
+                userId: userId
+            )
+            
+            // Save to Firestore
+            let docRef = db.collection("videos").document()
+            try docRef.setData(from: video)
+            
+            // Clean up temporary files if we created any
+            if finalURL != url {
+                try? FileManager.default.removeItem(at: finalURL)
+            }
+            
+            return video
+        } catch {
+            // Clean up any temporary files on error
+            if finalURL != url {
+                try? FileManager.default.removeItem(at: finalURL)
+            }
+            
+            // Provide more specific error information
+            if let storageError = error as? StorageError {
+                switch storageError {
+                case .quotaExceeded:
+                    throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Storage quota exceeded. Please try a smaller video."])
+                case .unauthorized:
+                    throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unauthorized to upload video. Please sign in again."])
+                default:
+                    throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to upload video: \(storageError.localizedDescription)"])
+                }
+            }
+            throw error
+        }
     }
     
     public func deleteVideo(id: String) async throws {

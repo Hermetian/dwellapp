@@ -3,6 +3,7 @@ import PhotosUI
 import AVKit
 import Core
 import FirebaseFirestore
+import FirebaseStorage
 
 @MainActor
 public struct VideoUploadView: View {
@@ -114,6 +115,12 @@ public struct VideoUploadView: View {
         Task {
             do {
                 let finalPropertyId = videoType == .property ? propertyId : nil
+                
+                // Show loading state
+                withAnimation {
+                    isUploading = true
+                }
+                
                 _ = try await videoService.uploadVideo(
                     url: videoURL,
                     title: title,
@@ -122,12 +129,33 @@ public struct VideoUploadView: View {
                     propertyId: finalPropertyId,
                     userId: userId
                 )
+                
+                // Clean up the temporary file
+                try? FileManager.default.removeItem(at: videoURL)
+                
                 dismiss()
             } catch {
-                errorMessage = error.localizedDescription
+                // Handle specific error cases
+                if let storageError = error as? StorageError {
+                    switch storageError {
+                    case .quotaExceeded:
+                        errorMessage = "Storage quota exceeded. Please try a smaller video."
+                    case .unauthorized:
+                        errorMessage = "Please sign in again to upload videos."
+                    case .retryLimitExceeded:
+                        errorMessage = "Upload failed due to poor network connection. Please try again."
+                    default:
+                        errorMessage = "Failed to upload video: \(storageError.localizedDescription)"
+                    }
+                } else {
+                    errorMessage = error.localizedDescription
+                }
                 showError = true
             }
-            isUploading = false
+            
+            withAnimation {
+                isUploading = false
+            }
         }
     }
 }
