@@ -2,6 +2,7 @@ import Core
 import SwiftUI
 import Combine
 import AVFoundation
+import FirebaseFirestore
 
 #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import UIKit
@@ -20,6 +21,19 @@ public class PropertyViewModel: ObservableObject {
     @Published public var hasMoreProperties = true
     @Published public var currentUserId: String?
     @Published public var property: Property?
+    
+    // Draft property state
+    @Published public var draftTitle = ""
+    @Published public var draftDescription = ""
+    @Published public var draftPrice = ""
+    @Published public var draftAddress = ""
+    @Published public var draftBedrooms = 1
+    @Published public var draftBathrooms = 1
+    @Published public var draftSquareFootage = ""
+    @Published public var draftAvailableDate = Date()
+    @Published public var draftSelectedVideos: [VideoItem] = []
+    @Published public var draftSelectedAmenities: Set<String> = []
+    @Published public var draftPropertyType = "Property (Rent)"
     
     private var databaseService: DatabaseService!
     private var storageService: StorageService!
@@ -162,10 +176,9 @@ public class PropertyViewModel: ObservableObject {
         error = nil
         
         do {
-            // Delete video and thumbnail
-            try await storageService.deleteFile(at: property.videoUrl)
-            if let thumbnailUrl = property.thumbnailUrl {
-                try await storageService.deleteFile(at: thumbnailUrl)
+            // Delete videos and thumbnails
+            for videoId in property.videoIds {
+                try await videoService.deleteVideo(id: videoId)
             }
             
             // Delete from database
@@ -211,7 +224,7 @@ public class PropertyViewModel: ObservableObject {
         do {
             // Process and upload video
             let compressedVideoURL = try await videoService.compressVideo(url: videoURL)
-            let videoUrl = try await storageService.uploadData(try Data(contentsOf: compressedVideoURL), path: "videos/\(UUID().uuidString).mp4")
+            _ = try await storageService.uploadData(try Data(contentsOf: compressedVideoURL), path: "videos/\(UUID().uuidString).mp4")
             
             // Generate and upload thumbnail
             let thumbnailImage = try await videoService.generateThumbnail(from: videoURL)
@@ -224,7 +237,7 @@ public class PropertyViewModel: ObservableObject {
                 description: description,
                 price: price,
                 address: location,
-                videoUrl: videoUrl.absoluteString,
+                videoIds: [],  // Will be updated after video creation
                 thumbnailUrl: thumbnailUrl.absoluteString,
                 bedrooms: bedrooms,
                 bathrooms: Double(bathrooms),
@@ -236,13 +249,27 @@ public class PropertyViewModel: ObservableObject {
             )
             
             // Save to database
-            let _ = try await databaseService.createProperty(property)
+            let propertyId = try await databaseService.createProperty(property)
+            
+            // Create video entry and link it to the property
+            let video = try await videoService.uploadVideo(
+                url: videoURL,
+                title: title,
+                description: description,
+                videoType: .property,
+                propertyId: propertyId,
+                userId: managerId
+            )
+            
+            if let videoId = video.id {
+                try await addVideoToProperty(propertyId: propertyId, videoId: videoId)
+            }
             
             // Refresh properties
             try await loadProperties()
             
             isLoading = false
-            return property.id ?? ""
+            return propertyId
         } catch {
             self.error = error
             isLoading = false
@@ -251,18 +278,53 @@ public class PropertyViewModel: ObservableObject {
     }
     #endif
     
-    public func createProperty(_ property: Property) async throws {
+    public func createProperty(_ property: Property) async throws -> String {
+        guard !isLoading else { throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
         
+        defer {
+            isLoading = false
+        }
+        
         do {
-            _ = try await databaseService.createProperty(property)
-            isLoading = false
+            let propertyId = try await databaseService.createProperty(property)
+            try await loadProperties()
+            return propertyId
         } catch {
-            isLoading = false
             self.error = error
             throw error
         }
+    }
+    
+    public func updateProperty(id: String, data: [String: Any]) async throws {
+        guard !isLoading else { throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
+        isLoading = true
+        error = nil
+        
+        defer {
+            isLoading = false
+        }
+        
+        do {
+            try await databaseService.updateProperty(id: id, data: data)
+            try await loadProperties()
+        } catch {
+            self.error = error
+            throw error
+        }
+    }
+    
+    public func addVideoToProperty(propertyId: String, videoId: String) async throws {
+        try await updateProperty(id: propertyId, data: [
+            "videoIds": FieldValue.arrayUnion([videoId])
+        ])
+    }
+    
+    public func removeVideoFromProperty(propertyId: String, videoId: String) async throws {
+        try await updateProperty(id: propertyId, data: [
+            "videoIds": FieldValue.arrayRemove([videoId])
+        ])
     }
     
     public func loadProperty(id: String) async {
@@ -276,5 +338,19 @@ public class PropertyViewModel: ObservableObject {
         }
         
         isLoading = false
+    }
+    
+    public func clearDraft() {
+        draftTitle = ""
+        draftDescription = ""
+        draftPrice = ""
+        draftAddress = ""
+        draftBedrooms = 1
+        draftBathrooms = 1
+        draftSquareFootage = ""
+        draftAvailableDate = Date()
+        draftSelectedVideos = []
+        draftSelectedAmenities = []
+        draftPropertyType = "Property (Rent)"
     }
 } 

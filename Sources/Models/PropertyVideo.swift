@@ -59,4 +59,17 @@ public struct Video: Identifiable, Codable {
         self.userId = userId
         self.serverTimestamp = serverTimestamp
     }
+}
+
+public struct VideoItem: Identifiable {
+    public let id = UUID()
+    public let url: URL
+    public var title: String
+    public var description: String
+    
+    public init(url: URL, title: String, description: String) {
+        self.url = url
+        self.title = title
+        self.description = description
+    }
 } 

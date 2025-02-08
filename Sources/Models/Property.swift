@@ -8,8 +8,8 @@ public struct Property: Identifiable, Codable {
     public let description: String
     public let price: Double
     public let address: String
-    public let videoUrl: String
-    public var thumbnailUrl: String?
+    public var videoIds: [String]  // Array of video IDs associated with this property
+    public var thumbnailUrl: String?  // Thumbnail of the first/primary video
     public let bedrooms: Int
     public let bathrooms: Double
     public let squareFootage: Double
@@ -40,7 +40,7 @@ public struct Property: Identifiable, Codable {
         case description
         case price
         case address
-        case videoUrl
+        case videoIds
         case thumbnailUrl
         case bedrooms
         case bathrooms
@@ -57,34 +57,36 @@ public struct Property: Identifiable, Codable {
         case userId
     }
     
-    public init(id: String? = nil,
-         managerId: String,
-         title: String,
-         description: String,
-         price: Double,
-         address: String,
-         videoUrl: String,
-         thumbnailUrl: String? = nil,
-         bedrooms: Int,
-         bathrooms: Double,
-         squareFootage: Double,
-         viewCount: Int = 0,
-         favoriteCount: Int = 0,
-         availableFrom: Date,
-         createdAt: Date = Date(),
-         updatedAt: Date = Date(),
-         serverTimestamp: Timestamp? = nil,
-         amenities: [String: Bool]? = nil,
-         imageUrl: String? = nil,
-         type: String,
-         userId: String) {
+    public init(
+        id: String? = nil,
+        managerId: String,
+        title: String,
+        description: String,
+        price: Double,
+        address: String,
+        videoIds: [String] = [],
+        thumbnailUrl: String? = nil,
+        bedrooms: Int,
+        bathrooms: Double,
+        squareFootage: Double,
+        viewCount: Int = 0,
+        favoriteCount: Int = 0,
+        availableFrom: Date,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        serverTimestamp: Timestamp? = nil,
+        amenities: [String: Bool]? = nil,
+        imageUrl: String? = nil,
+        type: String,
+        userId: String
+    ) {
         self.id = id
         self.managerId = managerId
         self.title = title
         self.description = description
         self.price = price
         self.address = address
-        self.videoUrl = videoUrl
+        self.videoIds = videoIds
         self.thumbnailUrl = thumbnailUrl
         self.bedrooms = bedrooms
         self.bathrooms = bathrooms
@@ -109,7 +111,7 @@ public struct Property: Identifiable, Codable {
         description = try container.decode(String.self, forKey: .description)
         price = try container.decode(Double.self, forKey: .price)
         address = try container.decode(String.self, forKey: .address)
-        videoUrl = try container.decode(String.self, forKey: .videoUrl)
+        videoIds = try container.decodeIfPresent([String].self, forKey: .videoIds) ?? []
         thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)
         bedrooms = try container.decode(Int.self, forKey: .bedrooms)
         bathrooms = try container.decode(Double.self, forKey: .bathrooms)
@@ -134,7 +136,7 @@ public struct Property: Identifiable, Codable {
         try container.encode(description, forKey: .description)
         try container.encode(price, forKey: .price)
         try container.encode(address, forKey: .address)
-        try container.encode(videoUrl, forKey: .videoUrl)
+        try container.encodeIfPresent(videoIds, forKey: .videoIds)
         try container.encodeIfPresent(thumbnailUrl, forKey: .thumbnailUrl)
         try container.encode(bedrooms, forKey: .bedrooms)
         try container.encode(bathrooms, forKey: .bathrooms)

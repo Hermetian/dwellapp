@@ -2,15 +2,18 @@ import Core
 import SwiftUI
 import AVKit
 import ViewModels
+import FirebaseFirestore
 
 public struct PropertyDetailView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var messagingViewModel = MessagingViewModel()
     let property: Property
     @State private var showingVideo = false
+    @State private var selectedVideoId: String?
     @State private var showingContact = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var videos: [Video] = []
     
     private var isFavorited: Bool {
         appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id }
@@ -31,8 +34,9 @@ public struct PropertyDetailView: View {
                     .frame(height: 250)
                     .clipped()
                     
-                    if !property.videoUrl.isEmpty {
+                    if !property.videoIds.isEmpty {
                         Button {
+                            selectedVideoId = property.videoIds.first
                             showingVideo = true
                         } label: {
                             Image(systemName: "play.circle.fill")
@@ -144,7 +148,9 @@ public struct PropertyDetailView: View {
             Text(errorMessage)
         }
         .sheet(isPresented: $showingVideo) {
-            if !property.videoUrl.isEmpty, let videoURL = URL(string: property.videoUrl) {
+            if let videoId = selectedVideoId,
+               let video = videos.first(where: { video in video.id == videoId }),
+               let videoURL = URL(string: video.videoUrl) {
                 #if os(iOS)
                 VideoPlayer(player: AVPlayer(url: videoURL))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -157,6 +163,21 @@ public struct PropertyDetailView: View {
         }
         .sheet(isPresented: $showingContact) {
             MessagingView()
+        }
+        .task {
+            // Load videos when view appears
+            if !property.videoIds.isEmpty {
+                do {
+                    let db = Firestore.firestore()
+                    let snapshot = try await db.collection("videos")
+                        .whereField(FieldPath.documentID(), in: property.videoIds)
+                        .getDocuments()
+                    videos = try snapshot.documents.map { try $0.data(as: Video.self) }
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            }
         }
     }
 }
@@ -197,7 +218,7 @@ struct AmenityView: View {
             description: "A beautiful property",
             price: 2000,
             address: "123 Main St",
-            videoUrl: "",
+            videoIds: [],
             bedrooms: 2,
             bathrooms: 2,
             squareFootage: 1000,

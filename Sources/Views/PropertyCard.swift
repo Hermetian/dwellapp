@@ -105,7 +105,7 @@ public struct PropertyCard: View {
         description: "A beautiful property",
         price: 2000,
         address: "123 Main St",
-        videoUrl: "",
+        videoIds: [],
         bedrooms: 2,
         bathrooms: 2,
         squareFootage: 1000,
