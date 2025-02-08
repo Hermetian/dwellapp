@@ -10,6 +10,9 @@ public struct MainTabView: View {
     @State private var showNewProperty = false
     @State private var showManageVideos = false
     @State private var showManageProperties = false
+    @State private var openedByHold = false
+    @GestureState private var dragLocation: CGPoint?
+    @State private var isHolding = false
     
     private var menuItems: [RadialMenuItem] {
         [
@@ -72,9 +75,14 @@ public struct MainTabView: View {
                             showRadialMenu = false
                         }
                     
-                    RadialMenu(items: menuItems, isPressed: $showRadialMenu)
+                    RadialMenu(
+                        items: menuItems,
+                        isPressed: $showRadialMenu,
+                        openedByHold: openedByHold,
+                        dragLocation: dragLocation
+                    )
                         .frame(height: 220)
-                        .offset(y: -40) // Position higher above the button
+                        .offset(y: -40)
                 }
                 
                 HStack(spacing: 0) {
@@ -105,20 +113,31 @@ public struct MainTabView: View {
                     .foregroundColor(showRadialMenu ? .blue : .primary)
                     .frame(width: 60)
                     .frame(width: UIScreen.main.bounds.width * 0.25)
-                    .contentShape(Rectangle())  // Make entire area tappable
+                    .contentShape(Rectangle())
                     .onTapGesture {
+                        openedByHold = false
                         showRadialMenu.toggle()
                     }
                     .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { _ in
-                                if !showRadialMenu {
+                        SequenceGesture(
+                            LongPressGesture(minimumDuration: 0.3)
+                                .onEnded { _ in
+                                    openedByHold = true
+                                    isHolding = true
                                     showRadialMenu = true
+                                },
+                            DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                                .updating($dragLocation) { value, state, _ in
+                                    if isHolding {
+                                        state = value.location
+                                    }
                                 }
-                            }
-                            .onEnded { _ in
-                                showRadialMenu = false
-                            }
+                                .onEnded { value in
+                                    if isHolding {
+                                        isHolding = false
+                                    }
+                                }
+                        )
                     )
                     
                     // Messages Tab (Icon only)

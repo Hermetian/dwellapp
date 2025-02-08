@@ -16,17 +16,20 @@ public struct RadialMenuItem: Identifiable {
 public struct RadialMenu: View {
     let items: [RadialMenuItem]
     @Binding var isPressed: Bool
-    @State private var dragLocation: CGPoint = .zero
+    let openedByHold: Bool
+    let dragLocation: CGPoint?
     @State private var selectedIndex: Int?
-    @State private var isDragging = false
     
-    public init(items: [RadialMenuItem], isPressed: Binding<Bool>) {
+    public init(items: [RadialMenuItem], isPressed: Binding<Bool>, openedByHold: Bool = false, dragLocation: CGPoint? = nil) {
         self.items = items
         self._isPressed = isPressed
+        self.openedByHold = openedByHold
+        self.dragLocation = dragLocation
     }
     
     public var body: some View {
         GeometryReader { geometry in
+            let menuProxy = geometry
             ZStack {
                 // Menu items
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -40,18 +43,52 @@ public struct RadialMenu: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        selectedIndex = nearestItem(to: value.location, in: geometry.size)
-                    }
-                    .onEnded { value in
+            .if(!openedByHold) { view in
+                // Simple tap/drag for tap-opened menu
+                view.gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            // Convert to global coordinates using GeometryProxy
+                            let menuFrame = menuProxy.frame(in: .global)
+                            let globalLocation = menuProxy.frame(in: .global).origin.applying(
+                                CGAffineTransform(translationX: value.location.x, y: value.location.y)
+                            )
+                            selectedIndex = nearestItemGlobal(to: globalLocation, menuFrame: menuFrame)
+                        }
+                        .onEnded { value in
+                            let menuFrame = menuProxy.frame(in: .global)
+                            let globalLocation = menuProxy.frame(in: .global).origin.applying(
+                                CGAffineTransform(translationX: value.location.x, y: value.location.y)
+                            )
+                            let finalIndex = nearestItemGlobal(to: globalLocation, menuFrame: menuFrame)
+                            if let selected = finalIndex {
+                                items[selected].action()
+                            }
+                            selectedIndex = nil
+                            isPressed = false
+                        }
+                )
+            }
+            .onChange(of: dragLocation) { location in
+                if openedByHold {
+                    if let globalLocation = location {
+                        let menuFrame = menuProxy.frame(in: .global)
+                        selectedIndex = nearestItemGlobal(to: globalLocation, menuFrame: menuFrame)
+                    } else {
                         if let selected = selectedIndex {
                             items[selected].action()
                         }
                         selectedIndex = nil
+                        isPressed = false
                     }
-            )
+                }
+            }
+            .onAppear {
+                if openedByHold, let globalLocation = dragLocation {
+                    let menuFrame = menuProxy.frame(in: .global)
+                    selectedIndex = nearestItemGlobal(to: globalLocation, menuFrame: menuFrame)
+                }
+            }
         }
     }
     
@@ -68,12 +105,16 @@ public struct RadialMenu: View {
         return CGPoint(x: x, y: y)
     }
     
-    private func nearestItem(to point: CGPoint, in size: CGSize) -> Int? {
+    private func nearestItemGlobal(to globalPoint: CGPoint, menuFrame: CGRect) -> Int? {
         let yOffset: CGFloat = 10
-        let center = CGPoint(x: size.width / 2, y: size.height - yOffset)
-        let vector = CGPoint(x: point.x - center.x, y: point.y - center.y)
+        // Calculate center in global coordinates
+        let centerX = menuFrame.minX + menuFrame.width / 2
+        let centerY = menuFrame.maxY - yOffset
+        let center = CGPoint(x: centerX, y: centerY)
         
-        let minDistance = min(size.width, size.height) * 0.1
+        let vector = CGPoint(x: globalPoint.x - center.x, y: globalPoint.y - center.y)
+        
+        let minDistance = min(menuFrame.width, menuFrame.height) * 0.1
         let distance = sqrt(vector.x * vector.x + vector.y * vector.y)
         if distance < minDistance {
             return nil
@@ -91,11 +132,11 @@ public struct RadialMenu: View {
         }
         
         let angleStep = Double.pi / Double(max(1, items.count - 1))
-        // Use (π - angle) to maintain left-to-right ordering matching the position() function
+        // Use (π - angle) to maintain left-to-right ordering
         let index = Int(round((Double.pi - angle) / angleStep))
         
         // Only return an index if we're close enough to an item
-        let radius = min(size.width, size.height) * 0.45
+        let radius = min(menuFrame.width, menuFrame.height) * 0.45
         if distance > radius * 1.3 { // Allow a bit of extra reach
             return nil
         }
@@ -125,5 +166,16 @@ private struct MenuItemView: View {
         )
         .foregroundColor(isSelected ? .white : .primary)
         .position(x: position.x, y: position.y)
+    }
+}
+
+// Extension to support conditional modifiers
+extension View {
+    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
     }
 } 
