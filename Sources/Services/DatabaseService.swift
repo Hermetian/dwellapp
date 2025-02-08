@@ -213,7 +213,6 @@ public class DatabaseService: ObservableObject {
     
     // MARK: - Messages
     
-    @MainActor
     public func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async throws -> String {
         // Check if conversation already exists
         let querySnapshot = try await db.collection("conversations")
@@ -232,7 +231,6 @@ public class DatabaseService: ObservableObject {
         return conversation.id
     }
     
-    @MainActor
     public func sendMessage(_ message: Message) async throws {
         let batch = db.batch()
         
@@ -319,18 +317,14 @@ public class DatabaseService: ObservableObject {
     @MainActor
     public func markConversationAsRead(conversationId: String) async throws {
         let ref = db.collection("conversations").document(conversationId)
-        // Create a Sendable dictionary
         let updateData: [String: Any] = ["hasUnreadMessages": false]
-        @Sendable func updateFirestore() async throws {
-            try await ref.updateData(updateData)
-        }
-        try await updateFirestore()
+        try await ref.updateData(updateData)
     }
     
     // MARK: - Video Methods
     
-    public func getVideosStream(limit: Int = 10, lastVideoId: String? = nil) -> AnyPublisher<[PropertyVideo], Error> {
-        var query = db.collection("videos")
+    public func getVideosStream(limit: Int = 10, lastVideoId: String? = nil) -> AnyPublisher<[Video], Error> {
+        let query = db.collection("videos")
             .order(by: "uploadDate", descending: true)
             .limit(to: limit)
         
@@ -341,9 +335,7 @@ public class DatabaseService: ObservableObject {
                 Task {
                     do {
                         let lastDoc = try await self.db.collection("videos").document(lastId).getDocument()
-                        query = query.start(afterDocument: lastDoc)
-                        
-                        let listener = query.addSnapshotListener { querySnapshot, error in
+                        let listener = query.start(afterDocument: lastDoc).addSnapshotListener { querySnapshot, error in
                             if let error = error {
                                 promise(.failure(error))
                                 return
@@ -355,7 +347,7 @@ public class DatabaseService: ObservableObject {
                             }
                             
                             do {
-                                let videos = try documents.map { try $0.data(as: PropertyVideo.self) }
+                                let videos = try documents.map { try $0.data(as: Video.self) }
                                 promise(.success(videos))
                             } catch {
                                 promise(.failure(error))
@@ -386,7 +378,7 @@ public class DatabaseService: ObservableObject {
                 }
                 
                 do {
-                    let videos = try documents.map { try $0.data(as: PropertyVideo.self) }
+                    let videos = try documents.map { try $0.data(as: Video.self) }
                     promise(.success(videos))
                 } catch {
                     promise(.failure(error))
@@ -398,7 +390,7 @@ public class DatabaseService: ObservableObject {
         .eraseToAnyPublisher()
     }
     
-    public func getPropertyVideos(propertyId: String) -> AnyPublisher<[PropertyVideo], Error> {
+    public func getPropertyVideos(propertyId: String) -> AnyPublisher<[Video], Error> {
         Future { [weak self] promise in
             guard let self = self else { return }
             
@@ -417,7 +409,7 @@ public class DatabaseService: ObservableObject {
                     }
                     
                     do {
-                        let videos = try documents.map { try $0.data(as: PropertyVideo.self) }
+                        let videos = try documents.map { try $0.data(as: Video.self) }
                         promise(.success(videos))
                     } catch {
                         promise(.failure(error))
@@ -429,12 +421,12 @@ public class DatabaseService: ObservableObject {
         .eraseToAnyPublisher()
     }
     
-    public func createVideo(_ video: PropertyVideo) async throws -> String {
+    public func createVideo(_ video: Video) async throws -> String {
         let docRef = try await db.collection("videos").addDocument(from: video)
         return docRef.documentID
     }
     
-    public func updateVideo(_ video: PropertyVideo) async throws {
+    public func updateVideo(_ video: Video) async throws {
         guard let id = video.id else { throw NSError(domain: "DatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Video ID not found"]) }
         try await db.collection("videos").document(id).setData(from: video, merge: true)
     }

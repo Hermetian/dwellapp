@@ -1,4 +1,6 @@
 import AVFoundation
+import FirebaseFirestore
+import FirebaseStorage
 #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import UIKit
 #elseif os(macOS)
@@ -7,7 +9,114 @@ import AppKit
 
 @MainActor
 public class VideoService: ObservableObject {
+    private let db = Firestore.firestore()
+    private let storage = Storage.storage()
+    
     public init() {}
+    
+    public func uploadVideo(
+        url: URL,
+        title: String,
+        description: String,
+        videoType: VideoType,
+        propertyId: String? = nil,
+        userId: String
+    ) async throws -> Video {
+        let videoData = try Data(contentsOf: url)
+        let videoRef = storage.reference().child("videos/\(UUID().uuidString).mp4")
+        
+        // Upload video
+        _ = try await videoRef.putDataAsync(videoData, metadata: nil)
+        let videoDownloadURL = try await videoRef.downloadURL()
+        
+        // Generate and upload thumbnail
+        let thumbnailURL = try await generateAndUploadThumbnail(from: url)
+        
+        // Create video object
+        let video = Video(
+            videoType: videoType,
+            propertyId: propertyId,
+            title: title,
+            description: description,
+            videoUrl: videoDownloadURL.absoluteString,
+            thumbnailUrl: thumbnailURL,
+            userId: userId
+        )
+        
+        // Save to Firestore
+        let docRef = db.collection("videos").document()
+        try docRef.setData(from: video)
+        
+        return video
+    }
+    
+    public func deleteVideo(id: String) async throws {
+        let docRef = db.collection("videos").document(id)
+        let video = try await docRef.getDocument(as: Video.self)
+        
+        // Delete video file
+        if let videoUrl = URL(string: video.videoUrl) {
+            let videoRef = storage.reference(forURL: videoUrl.absoluteString)
+            try await videoRef.delete()
+        }
+        
+        // Delete thumbnail
+        if let thumbnailUrl = video.thumbnailUrl, let thumbnailURL = URL(string: thumbnailUrl) {
+            let thumbnailRef = storage.reference(forURL: thumbnailURL.absoluteString)
+            try await thumbnailRef.delete()
+        }
+        
+        // Delete document
+        try await docRef.delete()
+    }
+    
+    public func getVideos(propertyId: String? = nil, limit: Int = 10, lastVideoId: String? = nil) async throws -> [Video] {
+        var query = db.collection("videos")
+            .order(by: "serverTimestamp", descending: true)
+        
+        if let propertyId = propertyId {
+            query = query.whereField("propertyId", isEqualTo: propertyId)
+        }
+        
+        if let lastId = lastVideoId {
+            let lastDoc = try await db.collection("videos").document(lastId).getDocument()
+            query = query.start(afterDocument: lastDoc)
+        }
+        
+        query = query.limit(to: limit)
+        let snapshot = try await query.getDocuments()
+        return try snapshot.documents.map { try $0.data(as: Video.self) }
+    }
+    
+    private func generateAndUploadThumbnail(from videoURL: URL) async throws -> String? {
+        let asset = AVAsset(url: videoURL)
+        let imageGenerator = AVAssetImageGenerator(asset: asset)
+        imageGenerator.appliesPreferredTrackTransform = true
+        
+        // Generate thumbnail at 0 seconds
+        let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
+        
+        #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+        let thumbnail = UIImage(cgImage: cgImage)
+        guard let thumbnailData = thumbnail.jpegData(compressionQuality: 0.7) else {
+            return nil
+        }
+        #elseif os(macOS)
+        let thumbnail = NSImage(cgImage: cgImage, size: .zero)
+        guard let thumbnailData = thumbnail.tiffRepresentation else {
+            return nil
+        }
+        #endif
+        
+        // Upload thumbnail
+        let thumbnailFileName = UUID().uuidString + ".jpg"
+        let thumbnailRef = storage.reference().child("thumbnails/\(thumbnailFileName)")
+        
+        _ = try await thumbnailRef.putDataAsync(thumbnailData, metadata: nil)
+        let thumbnailURL = try await thumbnailRef.downloadURL()
+        
+        return thumbnailURL.absoluteString
+    }
     
     public func getVideoDuration(url: URL) async throws -> TimeInterval {
         let asset = AVAsset(url: url)

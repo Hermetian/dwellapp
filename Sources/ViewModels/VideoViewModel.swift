@@ -2,10 +2,11 @@ import Core
 import Foundation
 import AVFoundation
 import Combine
+import FirebaseFirestore
 
 @MainActor
 public final class VideoViewModel: ObservableObject {
-    @Published public var videos: [PropertyVideo] = []
+    @Published public var videos: [Video] = []
     @Published public var isLoading = false
     @Published public var error: Error?
     @Published public var currentPage = 0
@@ -17,6 +18,7 @@ public final class VideoViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var lastVideoId: String?
     private let pageSize = 10
+    private let db = Firestore.firestore()
     
     public nonisolated init(databaseService: DatabaseService,
                           storageService: StorageService,
@@ -75,7 +77,7 @@ public final class VideoViewModel: ObservableObject {
         }
     }
     
-    public func uploadVideo(url: URL, propertyId: String, title: String, description: String) async throws -> String {
+    public func uploadVideo(url: URL, propertyId: String, title: String, description: String, userId: String) async throws -> String {
         guard !isLoading else { throw NSError(domain: "VideoViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
@@ -98,13 +100,14 @@ public final class VideoViewModel: ObservableObject {
             #endif
             
             // Create video record
-            let video = PropertyVideo(
+            let video = Video(
                 propertyId: propertyId,
                 title: title,
                 description: description,
                 videoUrl: videoUrl.absoluteString,
                 thumbnailUrl: thumbnailUrl.absoluteString,
-                uploadDate: Date()
+                uploadDate: Date(),
+                userId: userId
             )
             
             // Save to database
@@ -123,7 +126,7 @@ public final class VideoViewModel: ObservableObject {
         }
     }
     
-    public func deleteVideo(_ video: PropertyVideo) async throws {
+    public func deleteVideo(_ video: Video) async throws {
         guard !isLoading else { throw NSError(domain: "VideoViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
@@ -152,7 +155,7 @@ public final class VideoViewModel: ObservableObject {
         }
     }
     
-    public func updateVideo(_ video: PropertyVideo, title: String, description: String) async throws {
+    public func updateVideo(_ video: Video, title: String, description: String) async throws {
         guard !isLoading else { throw NSError(domain: "VideoViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil

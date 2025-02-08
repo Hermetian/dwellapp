@@ -4,11 +4,13 @@ import UIKit
 import AppKit
 #endif
 import FirebaseStorage
+import FirebaseFirestore
 import AVFoundation
 
 @MainActor
 public class StorageService: ObservableObject {
     private let storage = Storage.storage()
+    private let db = Firestore.firestore()
     
     public init() {}
     

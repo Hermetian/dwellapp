@@ -1,5 +1,6 @@
 import SwiftUI
 import ViewModels
+import Core
 
 public struct MainTabView: View {
     @EnvironmentObject var appViewModel: AppViewModel
@@ -13,6 +14,7 @@ public struct MainTabView: View {
     @State private var openedByHold = false
     @GestureState private var dragLocation: CGPoint?
     @State private var isHolding = false
+    @StateObject private var videoService = VideoService()
     
     private var menuItems: [RadialMenuItem] {
         [
@@ -39,26 +41,17 @@ public struct MainTabView: View {
         ZStack(alignment: .bottom) {
             // Content
             TabView(selection: $selectedTab) {
-                NavigationView {
+                NavigationStack {
                     FeedView()
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                Button {
-                                    showFilters = true
-                                } label: {
-                                    Image(systemName: "line.3.horizontal.decrease.circle")
-                                }
-                            }
-                        }
                 }
                 .tag(0)
                 
-                NavigationView {
+                NavigationStack {
                     MessagingView()
                 }
                 .tag(1)
                 
-                NavigationView {
+                NavigationStack {
                     ProfileView()
                 }
                 .tag(2)
@@ -174,7 +167,12 @@ public struct MainTabView: View {
             FilterView()
         }
         .sheet(isPresented: $showNewVideo) {
-            NewVideoView()
+            NavigationStack {
+                VideoUploadView(
+                    videoService: videoService,
+                    userId: appViewModel.authViewModel.currentUser?.id ?? ""
+                )
+            }
         }
         .sheet(isPresented: $showNewProperty) {
             UploadPropertyView()
@@ -190,22 +188,52 @@ public struct MainTabView: View {
     public init() {}
 }
 
-
 #Preview {
     MainTabView()
         .environmentObject(AppViewModel())
 }
 
-// Placeholder views - we'll implement these next
-struct NewVideoView: View {
-    var body: some View {
-        Text("New Video View")
-    }
-}
-
 struct ManageVideosView: View {
+    @StateObject private var viewModel = VideoFeedViewModel()
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var videoService = VideoService()
+    
     var body: some View {
-        Text("Manage Videos View")
+        NavigationStack {
+            List {
+                ForEach(viewModel.videos) { video in
+                    VStack(alignment: .leading) {
+                        Text(video.title)
+                            .font(.headline)
+                        Text(video.description)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        Text("Uploaded: \(video.uploadDate.formatted())")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            Task {
+                                try? await videoService.deleteVideo(id: video.id ?? "")
+                                viewModel.loadInitialVideos()
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Manage Videos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 
