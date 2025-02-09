@@ -7,6 +7,24 @@ public struct VideoEditorView: View {
     let onSave: (URL) -> Void
     
     @StateObject private var videoService = VideoService()
+    @Environment(\.dismiss) private var dismiss
+    
+    public init(videoURL: URL, onSave: @escaping (URL) -> Void) {
+        self.videoURL = videoURL
+        self.onSave = onSave
+    }
+    
+    public var body: some View {
+        VideoFilterEditorView(videoURL: videoURL, onSave: onSave)
+    }
+}
+
+// Internal implementation
+fileprivate struct VideoFilterEditorView: View {
+    let videoURL: URL
+    let onSave: (URL) -> Void
+    
+    @StateObject private var videoService = VideoService()
     @State private var player: AVPlayer?
     @State private var isProcessing = false
     @State private var currentFilter: VideoService.VideoFilter?
@@ -18,7 +36,7 @@ public struct VideoEditorView: View {
     @State private var previewURL: URL
     @Environment(\.dismiss) private var dismiss
     
-    public init(videoURL: URL, onSave: @escaping (URL) -> Void) {
+    init(videoURL: URL, onSave: @escaping (URL) -> Void) {
         self.videoURL = videoURL
         self.onSave = onSave
         _previewURL = State(initialValue: videoURL)
@@ -142,49 +160,6 @@ public struct VideoEditorView: View {
             } catch {
                 print("Error applying filter: \(error)")
                 isProcessing = false
-            }
-        }
-    }
-}
-
-private struct FilterControl: View {
-    let title: String
-    @Binding var value: Float
-    let range: ClosedRange<Float>
-    let defaultValue: Float
-    let onChange: (Float) -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                Button("Reset") {
-                    value = defaultValue
-                    onChange(defaultValue)
-                }
-                .font(.caption)
-                .foregroundColor(.blue)
-            }
-            
-            HStack {
-                Text(String(format: "%.1f", range.lowerBound))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Slider(value: $value, in: range) { isEditing in
-                    if !isEditing {
-                        onChange(value)
-                    }
-                }
-                
-                Text(String(format: "%.1f", range.upperBound))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
         }
     }

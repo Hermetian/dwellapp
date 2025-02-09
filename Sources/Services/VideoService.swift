@@ -1,14 +1,16 @@
+@preconcurrency import CoreImage
 import AVFoundation
 import FirebaseFirestore
 import FirebaseStorage
-import CoreImage
 #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import UIKit
 #elseif os(macOS)
 import AppKit
 #endif
 
-@MainActor
+// Added extension to mark AVAssetExportSession as @unchecked Sendable to resolve concurrency warnings
+extension AVAssetExportSession: @unchecked @retroactive Sendable {}
+
 public class VideoService: ObservableObject {
     private let db = Firestore.firestore()
     private let storage = Storage.storage()
@@ -164,7 +166,7 @@ public class VideoService: ObservableObject {
         return thumbnailURL.absoluteString
     }
     
-    public func getVideoDuration(url: URL) async throws -> TimeInterval {
+    public func getVideoDuration(url: URL) async throws -> Double {
         let asset = AVAsset(url: url)
         let duration = try await asset.load(.duration)
         return duration.seconds
@@ -181,19 +183,53 @@ public class VideoService: ObservableObject {
         guard let export = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
             throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
         }
-        
         export.outputURL = outputURL
         export.outputFileType = .mp4
         export.timeRange = timeRange
         
-        await withCheckedContinuation { continuation in
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             export.exportAsynchronously {
-                continuation.resume()
+                Task { @MainActor in
+                    continuation.resume()
+                }
             }
         }
         
-        guard export.status == .completed else {
+        if export.status != .completed {
             throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to export video: \(String(describing: export.error))"])
+        }
+    }
+    
+    private func createExportSession(for composition: AVComposition, videoComposition: AVVideoComposition? = nil) throws -> AVAssetExportSession {
+        guard let exportSession = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetHighestQuality
+        ) else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
+        }
+        
+        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mp4")
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        if let videoComposition = videoComposition {
+            exportSession.videoComposition = videoComposition
+        }
+        
+        return exportSession
+    }
+    
+    @MainActor
+    private func export(using session: AVAssetExportSession) async throws -> URL {
+        try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<URL, Error>) in
+            session.exportAsynchronously {
+                Task { @MainActor in
+                    if session.status == .completed, let outputURL = session.outputURL {
+                        continuation.resume(returning: outputURL)
+                    } else {
+                        continuation.resume(throwing: session.error ?? NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Export failed"]))
+                    }
+                }
+            }
         }
     }
     
@@ -243,13 +279,15 @@ public class VideoService: ObservableObject {
         export.outputURL = tempURL
         export.outputFileType = .mp4
         
-        await withCheckedContinuation { continuation in
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             export.exportAsynchronously {
-                continuation.resume()
+                Task { @MainActor in
+                    continuation.resume()
+                }
             }
         }
         
-        guard export.status == .completed else {
+        if export.status != .completed {
             throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to compress video: \(String(describing: export.error))"])
         }
         
@@ -296,7 +334,8 @@ public class VideoService: ObservableObject {
         }
         
         let timeRange = CMTimeRange(start: .zero, duration: try await asset.load(.duration))
-        try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack!, at: .zero)
+        let sourceVideoTrack = videoTrack!
+        try compositionVideoTrack.insertTimeRange(timeRange, of: sourceVideoTrack, at: .zero)
         
         if let audioTrack = audioTrack,
            let compositionAudioTrack = composition.addMutableTrack(
@@ -306,9 +345,8 @@ public class VideoService: ObservableObject {
             try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: .zero)
         }
         
-        // Create video composition
+        let context = self.ciContext
         let videoComposition = AVMutableVideoComposition(asset: composition) { request in
-            // The sourceImage is already a CIImage
             var outputImage = request.sourceImage
             
             switch filter {
@@ -359,38 +397,14 @@ public class VideoService: ObservableObject {
                 }
             }
             
-            // Use the filtered CIImage directly
-            request.finish(with: outputImage, context: nil)
+            request.finish(with: outputImage, context: context)
         }
         
         videoComposition.renderSize = try await compositionVideoTrack.load(.naturalSize)
         videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
         
-        // Export
-        return try await withCheckedThrowingContinuation { continuation in
-            Task { @MainActor in
-                guard let exportSession = AVAssetExportSession(
-                    asset: composition,
-                    presetName: AVAssetExportPresetHighestQuality
-                ) else {
-                    continuation.resume(throwing: NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"]))
-                    return
-                }
-                
-                let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mp4")
-                exportSession.outputURL = outputURL
-                exportSession.outputFileType = .mp4
-                exportSession.videoComposition = videoComposition
-                
-                exportSession.exportAsynchronously {
-                    if exportSession.status == .completed {
-                        continuation.resume(returning: outputURL)
-                    } else {
-                        continuation.resume(throwing: exportSession.error ?? NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Export failed"]))
-                    }
-                }
-            }
-        }
+        let exportSession = try self.createExportSession(for: composition, videoComposition: videoComposition)
+        return try await self.export(using: exportSession)
     }
     
     public enum VideoFilter: Sendable {
@@ -399,5 +413,230 @@ public class VideoService: ObservableObject {
         case saturation(Float)
         case vibrance(Float)
         case temperature(Float)
+    }
+    
+    public struct VideoClip: Identifiable, Sendable {
+        public let id: UUID
+        public let sourceURL: URL
+        public let startTime: CMTime
+        public let duration: CMTime
+        public var filter: VideoFilter?
+        
+        public init(sourceURL: URL, startTime: CMTime = .zero, duration: CMTime, filter: VideoFilter? = nil) {
+            self.id = UUID()
+            self.sourceURL = sourceURL
+            self.startTime = startTime
+            self.duration = duration
+            self.filter = filter
+        }
+    }
+    
+    public func createClip(from url: URL, startTime: CMTime, duration: CMTime) async throws -> VideoClip {
+        // Validate time ranges
+        let asset = AVAsset(url: url)
+        let assetDuration = try await asset.load(.duration)
+        
+        guard startTime >= .zero,
+              duration > .zero,
+              startTime + duration <= assetDuration else {
+            throw NSError(domain: "VideoService", code: -1, 
+                         userInfo: [NSLocalizedDescriptionKey: "Invalid time range for clip"])
+        }
+        
+        return VideoClip(sourceURL: url, startTime: startTime, duration: duration)
+    }
+    
+    public func renderClip(_ clip: VideoClip) async throws -> URL {
+        let asset = AVAsset(url: clip.sourceURL)
+        let composition = AVMutableComposition()
+        
+        guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first,
+              let compositionVideoTrack = composition.addMutableTrack(
+                withMediaType: .video,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+              ) else {
+            throw NSError(domain: "VideoService", code: -1, 
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to create video track"])
+        }
+        
+        let timeRange = CMTimeRange(start: clip.startTime, duration: clip.duration)
+        try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: .zero)
+        
+        if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first,
+           let compositionAudioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+           ) {
+            try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: .zero)
+        }
+        
+        var videoComposition: AVMutableVideoComposition?
+        if let filter = clip.filter {
+            let context = self.ciContext
+            videoComposition = AVMutableVideoComposition(asset: composition) { request in
+                var outputImage = request.sourceImage
+                
+                switch filter {
+                case .brightness(let value):
+                    if let filter = CIFilter(name: "CIColorControls") {
+                        filter.setValue(outputImage, forKey: kCIInputImageKey)
+                        filter.setValue(CGFloat(value), forKey: kCIInputBrightnessKey)
+                        if let output = filter.outputImage {
+                            outputImage = output
+                        }
+                    }
+                    
+                case .contrast(let value):
+                    if let filter = CIFilter(name: "CIColorControls") {
+                        filter.setValue(outputImage, forKey: kCIInputImageKey)
+                        filter.setValue(CGFloat(value), forKey: kCIInputContrastKey)
+                        if let output = filter.outputImage {
+                            outputImage = output
+                        }
+                    }
+                    
+                case .saturation(let value):
+                    if let filter = CIFilter(name: "CIColorControls") {
+                        filter.setValue(outputImage, forKey: kCIInputImageKey)
+                        filter.setValue(CGFloat(value), forKey: kCIInputSaturationKey)
+                        if let output = filter.outputImage {
+                            outputImage = output
+                        }
+                    }
+                    
+                case .vibrance(let value):
+                    if let filter = CIFilter(name: "CIVibrance") {
+                        filter.setValue(outputImage, forKey: kCIInputImageKey)
+                        filter.setValue(CGFloat(value), forKey: kCIInputAmountKey)
+                        if let output = filter.outputImage {
+                            outputImage = output
+                        }
+                    }
+                    
+                case .temperature(let value):
+                    if let filter = CIFilter(name: "CITemperatureAndTint") {
+                        filter.setValue(outputImage, forKey: kCIInputImageKey)
+                        filter.setValue(CIVector(x: CGFloat(6500), y: 0), forKey: "inputNeutral")
+                        filter.setValue(CIVector(x: CGFloat(value), y: 0), forKey: "inputTargetNeutral")
+                        if let output = filter.outputImage {
+                            outputImage = output
+                        }
+                    }
+                }
+                
+                request.finish(with: outputImage, context: context)
+            }
+            
+            videoComposition?.renderSize = try await compositionVideoTrack.load(.naturalSize)
+            videoComposition?.frameDuration = CMTime(value: 1, timescale: 30)
+        }
+        
+        let exportSession = try self.createExportSession(for: composition, videoComposition: videoComposition)
+        return try await self.export(using: exportSession)
+    }
+    
+    public func stitchClips(_ clips: [VideoClip]) async throws -> URL {
+        guard !clips.isEmpty else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No clips provided"])
+        }
+        
+        let composition = AVMutableComposition()
+        var currentTime = CMTime.zero
+        
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ),
+        let compositionAudioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition tracks"])
+        }
+        
+        for clip in clips {
+            let asset = AVAsset(url: clip.sourceURL)
+            
+            guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else { continue }
+            
+            let timeRange = CMTimeRange(start: clip.startTime, duration: clip.duration)
+            try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: currentTime)
+            
+            if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first {
+                try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: currentTime)
+            }
+            
+            currentTime = currentTime + clip.duration
+        }
+        
+        let context = self.ciContext
+        let videoComposition = AVMutableVideoComposition(asset: composition) { request in
+            var outputImage = request.sourceImage
+            
+            var accumulatedTime = CMTime.zero
+            for clip in clips {
+                let clipEndTime = accumulatedTime + clip.duration
+                if request.compositionTime >= accumulatedTime && request.compositionTime < clipEndTime,
+                   let filter = clip.filter {
+                    switch filter {
+                    case .brightness(let value):
+                        if let filter = CIFilter(name: "CIColorControls") {
+                            filter.setValue(outputImage, forKey: kCIInputImageKey)
+                            filter.setValue(CGFloat(value), forKey: kCIInputBrightnessKey)
+                            if let output = filter.outputImage {
+                                outputImage = output
+                            }
+                        }
+                        
+                    case .contrast(let value):
+                        if let filter = CIFilter(name: "CIColorControls") {
+                            filter.setValue(outputImage, forKey: kCIInputImageKey)
+                            filter.setValue(CGFloat(value), forKey: kCIInputContrastKey)
+                            if let output = filter.outputImage {
+                                outputImage = output
+                            }
+                        }
+                        
+                    case .saturation(let value):
+                        if let filter = CIFilter(name: "CIColorControls") {
+                            filter.setValue(outputImage, forKey: kCIInputImageKey)
+                            filter.setValue(CGFloat(value), forKey: kCIInputSaturationKey)
+                            if let output = filter.outputImage {
+                                outputImage = output
+                            }
+                        }
+                        
+                    case .vibrance(let value):
+                        if let filter = CIFilter(name: "CIVibrance") {
+                            filter.setValue(outputImage, forKey: kCIInputImageKey)
+                            filter.setValue(CGFloat(value), forKey: kCIInputAmountKey)
+                            if let output = filter.outputImage {
+                                outputImage = output
+                            }
+                        }
+                        
+                    case .temperature(let value):
+                        if let filter = CIFilter(name: "CITemperatureAndTint") {
+                            filter.setValue(outputImage, forKey: kCIInputImageKey)
+                            filter.setValue(CIVector(x: CGFloat(6500), y: 0), forKey: "inputNeutral")
+                            filter.setValue(CIVector(x: CGFloat(value), y: 0), forKey: "inputTargetNeutral")
+                            if let output = filter.outputImage {
+                                outputImage = output
+                            }
+                        }
+                    }
+                    break
+                }
+                accumulatedTime = clipEndTime
+            }
+            
+            request.finish(with: outputImage, context: context)
+        }
+        
+        videoComposition.renderSize = try await compositionVideoTrack.load(.naturalSize)
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        
+        let exportSession = try self.createExportSession(for: composition, videoComposition: videoComposition)
+        return try await self.export(using: exportSession)
     }
 } 

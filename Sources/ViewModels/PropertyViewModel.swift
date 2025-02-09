@@ -11,7 +11,7 @@ import AppKit
 #endif
 
 @MainActor
-public class PropertyViewModel: ObservableObject {
+public final class PropertyViewModel: ObservableObject {
     @Published public var properties: [Property] = []
     @Published public var favoriteProperties: [Property] = []
     @Published public var selectedProperty: Property?
@@ -42,9 +42,9 @@ public class PropertyViewModel: ObservableObject {
     var lastPropertyId: String?
     private let pageSize = 10
     
-    public nonisolated init(databaseService: DatabaseService? = nil,
-                    storageService: StorageService? = nil,
-                    videoService: VideoService? = nil) {
+    public init(databaseService: DatabaseService? = nil,
+                storageService: StorageService? = nil,
+                videoService: VideoService? = nil) {
         if let databaseService = databaseService {
             self.databaseService = databaseService
         }

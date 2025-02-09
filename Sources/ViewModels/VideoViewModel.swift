@@ -20,9 +20,9 @@ public final class VideoViewModel: ObservableObject {
     private let pageSize = 10
     private let db = Firestore.firestore()
     
-    public nonisolated init(databaseService: DatabaseService,
-                          storageService: StorageService,
-                          videoService: VideoService) {
+    public init(databaseService: DatabaseService,
+                storageService: StorageService,
+                videoService: VideoService) {
         self.databaseService = databaseService
         self.storageService = storageService
         self.videoService = videoService

@@ -332,32 +332,38 @@ public class DatabaseService: ObservableObject {
             return Future { [weak self] promise in
                 guard let self = self else { return }
                 
-                Task {
-                    do {
-                        let lastDoc = try await self.db.collection("videos").document(lastId).getDocument()
-                        let listener = query.start(afterDocument: lastDoc).addSnapshotListener { querySnapshot, error in
-                            if let error = error {
-                                promise(.failure(error))
-                                return
-                            }
-                            
-                            guard let documents = querySnapshot?.documents else {
-                                promise(.success([]))
-                                return
-                            }
-                            
-                            do {
-                                let videos = try documents.map { try $0.data(as: Video.self) }
-                                promise(.success(videos))
-                            } catch {
-                                promise(.failure(error))
-                            }
+                let docRef = self.db.collection("videos").document(lastId)
+                docRef.getDocument { snapshot, error in
+                    if let error = error {
+                        promise(.failure(error))
+                        return
+                    }
+                    
+                    guard let snapshot = snapshot else {
+                        promise(.failure(NSError(domain: "DatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Document not found"])))
+                        return
+                    }
+                    
+                    let listener = query.start(afterDocument: snapshot).addSnapshotListener { querySnapshot, error in
+                        if let error = error {
+                            promise(.failure(error))
+                            return
                         }
                         
-                        self.store(listener: listener, for: "videos-\(lastId)")
-                    } catch {
-                        promise(.failure(error))
+                        guard let documents = querySnapshot?.documents else {
+                            promise(.success([]))
+                            return
+                        }
+                        
+                        do {
+                            let videos = try documents.map { try $0.data(as: Video.self) }
+                            promise(.success(videos))
+                        } catch {
+                            promise(.failure(error))
+                        }
                     }
+                    
+                    self.store(listener: listener, for: "videos-\(lastId)")
                 }
             }
             .eraseToAnyPublisher()
@@ -422,13 +428,13 @@ public class DatabaseService: ObservableObject {
     }
     
     public func createVideo(_ video: Video) async throws -> String {
-        let docRef = try await db.collection("videos").addDocument(from: video)
+        let docRef = try db.collection("videos").addDocument(from: video)
         return docRef.documentID
     }
     
     public func updateVideo(_ video: Video) async throws {
         guard let id = video.id else { throw NSError(domain: "DatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Video ID not found"]) }
-        try await db.collection("videos").document(id).setData(from: video, merge: true)
+        try db.collection("videos").document(id).setData(from: video, merge: true)
     }
     
     public func deleteVideo(id: String) async throws {
