@@ -22,6 +22,7 @@
 		2DB3974C52B86A1BDA2DAE0E /* ViewModels_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F45CD25EF0080CCFC4B33183 /* ViewModels_iOS.framework */; };
 		2DE321C8B4D37EC2F53D89AD /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7567C1D9A5649E80EE85057A /* Message.swift */; };
 		2DFB1FC94B51C1C168408BF5 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AF25B96B9C8F5EA8102BDD /* SignUpView.swift */; };
+		2E597EEE670B466E71272AFF /* ClipTrimControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFCE76A4FB1DC06FAEB29403 /* ClipTrimControls.swift */; };
 		307CAC3F5A37A4B3E4CAAF89 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9AB2F553615A59DB3C512F11 /* Preview Assets.xcassets */; };
 		31A78F21CEF818D1B31D3B4E /* Property.swift in Sources */ = {isa = PBXBuildFile; fileRef = 092EC2065E33221CB3794C05 /* Property.swift */; };
 		34FBDA570F1FB2A4CDF7D613 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02EA244EEF674B695C4E4BC /* AppViewModel.swift */; };
@@ -95,6 +96,7 @@
 		BB7FB54A9683B1966AE97302 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF87AC73E6A8A9C2120976F9 /* MainTabView.swift */; };
 		BCB2C9D0C96A3D1B7052AA1E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20F3E659C943ABD14E9338CA /* Assets.xcassets */; };
 		BE0814411B153B16F13F40B1 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C45B8A03E7C242106921A45 /* FeedView.swift */; };
+		BEB6CC5686753040A9DDAA8D /* ClipTrimControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFCE76A4FB1DC06FAEB29403 /* ClipTrimControls.swift */; };
 		C2A58AA359D8E92A0CF592E3 /* ViewModels_iOS.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F45CD25EF0080CCFC4B33183 /* ViewModels_iOS.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C5CC14E9A4A484736AB28AA2 /* FirebaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66997A68E4F4B264E79D138 /* FirebaseConfig.swift */; };
 		C5D2CD25D9168B1521CED9C1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20F3E659C943ABD14E9338CA /* Assets.xcassets */; };
@@ -281,6 +283,7 @@
 		9AB2F553615A59DB3C512F11 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A645FCA01E4CCC9DFFCFA9BE /* Dwell_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Dwell_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA8B50B0035819D2EEE5E5DE /* PropertyDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyDetailView.swift; sourceTree = "<group>"; };
+		AFCE76A4FB1DC06FAEB29403 /* ClipTrimControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipTrimControls.swift; sourceTree = "<group>"; };
 		B4A77BB1A9BAFDA337B461B7 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		B66997A68E4F4B264E79D138 /* FirebaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseConfig.swift; sourceTree = "<group>"; };
 		B9FC0538A8BB344E1D68846D /* Core_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Core_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -386,6 +389,7 @@
 		19F45AD74589D4F0D6AC24F4 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				AFCE76A4FB1DC06FAEB29403 /* ClipTrimControls.swift */,
 				314D99D2D65AFAF8AD6D1CE6 /* FilterControl.swift */,
 				4097A710AE14663E5C21BAAB /* RadialMenu.swift */,
 				22BB2E82E6877A905E0EE7B9 /* RangeSlider.swift */,
@@ -756,6 +760,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				6B181E76FB1B45744C83B723 /* AuthView.swift in Sources */,
+				2E597EEE670B466E71272AFF /* ClipTrimControls.swift in Sources */,
 				99E9BF2A5DFC02AEB5F5B5D8 /* EmailLinkSignInView.swift in Sources */,
 				5336871C6441492D9D0F3FDA /* FavoritesView.swift in Sources */,
 				E703B639B73C0E8E29C643F0 /* FeedView.swift in Sources */,
@@ -821,6 +826,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EF17D2D5E60CA420CA9BF636 /* AuthView.swift in Sources */,
+				BEB6CC5686753040A9DDAA8D /* ClipTrimControls.swift in Sources */,
 				96FFB97FBE49749787914C91 /* EmailLinkSignInView.swift in Sources */,
 				500C75BB67F823357879E07F /* FavoritesView.swift in Sources */,
 				BE0814411B153B16F13F40B1 /* FeedView.swift in Sources */,
