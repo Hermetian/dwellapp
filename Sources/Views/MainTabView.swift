@@ -7,6 +7,7 @@ import FirebaseStorage
 
 public struct MainTabView: View {
     @EnvironmentObject var appViewModel: AppViewModel
+    @StateObject private var chatViewModel = ChatViewModel()
     @State private var selectedTab = 0
     @State private var showFilters = false
     @State private var showRadialMenu = false
@@ -50,7 +51,7 @@ public struct MainTabView: View {
                 .tag(0)
                 
                 NavigationStack {
-                    MessagingView()
+                    ChatListView()
                 }
                 .tag(1)
                 
@@ -186,6 +187,7 @@ public struct MainTabView: View {
         .sheet(isPresented: $showManageProperties) {
             ManagePropertiesView()
         }
+        .environmentObject(chatViewModel)
     }
     
     public init() {}

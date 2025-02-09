@@ -3,6 +3,7 @@ import PhotosUI
 import AVKit
 import Core
 import ViewModels
+import Firebase
 
 struct PropertyFormView: View {
     @EnvironmentObject private var appViewModel: AppViewModel

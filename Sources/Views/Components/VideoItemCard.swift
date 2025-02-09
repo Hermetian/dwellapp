@@ -52,6 +52,5 @@ struct VideoItemCard: View {
         }
         .padding(.vertical, 8)
         .background(Color.clear)
-        .contentShape(Rectangle())
     }
 } 

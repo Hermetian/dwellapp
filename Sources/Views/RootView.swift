@@ -3,6 +3,7 @@ import ViewModels
 
 public struct RootView: View {
     @StateObject private var appViewModel = AppViewModel()
+    @StateObject private var chatViewModel = ChatViewModel()
     @ObservedObject private var authViewModel: AuthViewModel
     
     public var body: some View {
@@ -10,6 +11,7 @@ public struct RootView: View {
             if authViewModel.isAuthenticated {
                 MainTabView()
                     .environmentObject(appViewModel)
+                    .environmentObject(chatViewModel)
                     .transition(.opacity)
             } else {
                 AuthView()

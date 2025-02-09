@@ -4,6 +4,7 @@ import ViewModels
 import AVKit
 import Combine
 import FirebaseFirestore
+import FirebaseAuth
 
 @MainActor
 public struct FeedView: View {
@@ -15,30 +16,45 @@ public struct FeedView: View {
     @State private var cancellables = Set<AnyCancellable>()
     
     public var body: some View {
-        GeometryReader { geometry in
-            TabView(selection: $videoFeedVM.currentIndex) {
-                ForEach(Array(videoFeedVM.videos.enumerated()), id: \.element.id) { index, video in
-                    VideoPlayerCard(
-                        video: video,
-                        onPropertyTap: { property in
-                            selectedProperty = property
-                            showPropertyDetails = true
-                        }
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .frame(
-                        width: geometry.size.height,
-                        height: geometry.size.width
-                    )
-                    .onAppear {
-                        videoFeedVM.onVideoAppear(at: index)
+        Group {
+            if videoFeedVM.isLoading {
+                ProgressView("Loading videos...")
+            } else if videoFeedVM.videos.isEmpty {
+                VStack(spacing: 16) {
+                    Text("No videos found")
+                        .font(.headline)
+                    if videoFeedVM.showOnlyPropertyVideos {
+                        Text("Try disabling property-only filter")
+                            .foregroundColor(.secondary)
                     }
-                    .tag(index)
+                    if let error = videoFeedVM.error {
+                        Text("Error: \(error.localizedDescription)")
+                            .foregroundColor(.red)
+                    }
+                }
+            } else {
+                GeometryReader { geometry in
+                    TabView(selection: $videoFeedVM.currentIndex) {
+                        ForEach(Array(videoFeedVM.videos.enumerated()), id: \.element.id) { index, video in
+                            VideoPlayerCard(
+                                video: video,
+                                onPropertyTap: { property in
+                                    selectedProperty = property
+                                    showPropertyDetails = true
+                                }
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .onAppear {
+                                videoFeedVM.onVideoAppear(at: index)
+                                print("Video appeared: \(video.title) (type: \(video.videoType), userId: \(video.userId))")
+                            }
+                            .tag(index)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                 }
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .rotationEffect(.degrees(90))
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
         }
         .ignoresSafeArea()
         .sheet(isPresented: $showPropertyDetails) {
@@ -218,122 +234,163 @@ private struct VideoPlayerCard: View {
     let onPropertyTap: (Property) -> Void
     
     @StateObject private var playerVM = VideoPlayerViewModel()
+    @EnvironmentObject private var chatViewModel: ChatViewModel
     @State private var property: Property?
     @State private var isLoading = true
     @State private var showPreview = false
     @State private var previewPlayer: AVPlayer?
+    @State private var showChatAlert = false
+    @AppStorage("hasSeenChatTip") private var hasSeenChatTip = false
+    @State private var showChatTip = false
     
     var body: some View {
-        ZStack {
-            // Background layer - explicitly non-interactive
-            Color.black
-                .allowsHitTesting(false)
-            
-            if let player = playerVM.player {
-                VideoPlayer(player: player)
-                    .disabled(true)
-                    .allowsHitTesting(false)
-            }
-            
-            // Video controls and info overlay
-            VStack {
-                Spacer()
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                // Background layer
+                Color.black
                 
-                HStack(alignment: .bottom) {
-                    // Video info - non-interactive area
-                VStack(alignment: .leading, spacing: 8) {
-                        Text(video.title)
-                            .font(.headline)
-                        
-                        if video.videoType == .property, let property = property {
-                            HStack {
-                                Text(formatPrice(property.price, type: property.type))
-                                    .font(.subheadline)
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Image(systemName: "bed.double.fill")
-                            Text("\(property.bedrooms)")
-                            Image(systemName: "drop.fill")
-                            Text(String(format: "%.1f", property.bathrooms))
-                        }
-                                .font(.caption)
-                            }
-                        }
-                        
-                        Text(video.description)
-                        .font(.subheadline)
-                        
-                        if video.videoType == .property, let property = property {
-                            Button {
-                                onPropertyTap(property)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "house.fill")
-                                    Text("View Property")
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .cornerRadius(20)
-                            }
-                        }
-                    }
-                    .padding()
-                    .foregroundColor(.white)
-                    .allowsHitTesting(false) // Make text non-interactive
-                    
+                // Video player
+                if let player = playerVM.player {
+                    VideoPlayer(player: player)
+                        .disabled(true)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                
+                // Controls overlay
+                VStack {
                     Spacer()
                     
-                    // Action buttons - explicitly interactive area
-                    VStack(spacing: 20) {
-                        Button {
-                            print("Preview button pressed for video: \(video.title)")
-                            showPreview = true
-                        } label: {
-                            VStack {
-                                Image(systemName: "play.circle.fill")
-                                    .font(.title)
-                                Text("Preview")
+                    HStack(alignment: .bottom, spacing: 20) {
+                        // Left side - Video info
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(video.title)
+                                .font(.headline)
+                            
+                            if video.videoType == .property, let property = property {
+                                HStack {
+                                    Text(formatPrice(property.price, type: property.type))
+                                        .font(.subheadline)
+                                    Spacer()
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "bed.double.fill")
+                                        Text("\(property.bedrooms)")
+                                        Image(systemName: "drop.fill")
+                                        Text(String(format: "%.1f", property.bathrooms))
+                                    }
                                     .font(.caption)
+                                }
+                                
+                                Text(video.description)
+                                    .font(.subheadline)
+                                
+                                Button {
+                                    onPropertyTap(property)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "house.fill")
+                                        Text("View Property")
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(20)
+                                }
                             }
-                            .padding(8)
-                            .background(Color.white.opacity(0.2))
-                            .cornerRadius(8)
                         }
+                        .padding()
+                        .frame(maxWidth: .infinity * 0.8, alignment: .leading)
                         
-                        Button {
-                            // Share functionality
-                        } label: {
-                            VStack {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.title)
-                                Text("Share")
-                                    .font(.caption)
+                        // Right side - Action buttons
+                        VStack(spacing: 20) {
+                            Button {
+                                print("Preview button pressed for video: \(video.title)")
+                                showPreview = true
+                            } label: {
+                                VStack {
+                                    Image(systemName: "play.circle.fill")
+                                        .font(.title)
+                                    Text("Preview")
+                                        .font(.caption)
+                                }
+                                .frame(width: 60, height: 60)
+                                .background(Color.white.opacity(0.2))
+                                .cornerRadius(8)
                             }
-                            .padding(8)
-                            .background(Color.white.opacity(0.2))
-                            .cornerRadius(8)
+                            
+                            if video.videoType == .property && video.userId != Auth.auth().currentUser?.uid {
+                                Button {
+                                    showChatAlert = true
+                                    hasSeenChatTip = true
+                                    showChatTip = false
+                                } label: {
+                                    VStack {
+                                        Image(systemName: "message.fill")
+                                            .font(.title)
+                                        Text("Chat")
+                                            .font(.caption)
+                                    }
+                                    .frame(width: 60, height: 60)
+                                    .background(Color.white.opacity(0.2))
+                                    .cornerRadius(8)
+                                }
+                                .overlay {
+                                    if !hasSeenChatTip && showChatTip {
+                                        VStack {
+                                            Text("👋 Tap here to chat about this property!")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+                                                .padding(8)
+                                                .background(Color.blue)
+                                                .cornerRadius(8)
+                                        }
+                                        .offset(x: -120, y: 0)
+                                    }
+                                }
+                            }
+                            
+                            Button {
+                                // Share functionality
+                            } label: {
+                                VStack {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.title)
+                                    Text("Share")
+                                        .font(.caption)
+                                }
+                                .frame(width: 60, height: 60)
+                                .background(Color.white.opacity(0.2))
+                                .cornerRadius(8)
+                            }
                         }
+                        .foregroundColor(.white)
+                        .padding(.trailing, 20)
                     }
-                    .foregroundColor(.white)
-                    .padding(.trailing)
-                }
-                .padding(.bottom, 30)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(colors: [.black.opacity(0.7), .clear]),
-                        startPoint: .bottom,
-                        endPoint: .top
+                    .padding(.bottom, 30)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [.black.opacity(0.7), .clear]),
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
                     )
-                )
-            }
-            
-            if isLoading {
-                ProgressView()
+                }
+                
+                if isLoading {
+                    ProgressView()
+                }
             }
         }
         .onAppear {
+            // Show chat tip after a short delay if it's a property video and user hasn't seen it
+            if video.videoType == .property && video.userId != Auth.auth().currentUser?.uid && !hasSeenChatTip {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation {
+                        showChatTip = true
+                    }
+                }
+            }
+            
             loadVideo()
             if video.videoType == .property {
                 loadProperty()
@@ -369,6 +426,18 @@ private struct VideoPlayerCard: View {
                     }
                 }
             }
+        }
+        .alert(isPresented: $showChatAlert) {
+            Alert(
+                title: Text("Start Chat"),
+                message: Text("Would you like to start a conversation about this property?"),
+                primaryButton: .default(Text("Yes")) {
+                    Task {
+                        await chatViewModel.createChannel(forVideo: video)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
         }
     }
     
