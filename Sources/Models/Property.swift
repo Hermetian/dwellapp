@@ -1,28 +1,55 @@
 import FirebaseFirestore
 import Foundation
 
-public struct Property: Identifiable, Codable {
+public enum PropertyTypes: String {
+    case vacationRental = "Vacation Rental"
+    case roomRent = "Room (Rent)"
+    case propertyRent = "Property (Rent)"
+    case condoTownhouseBuy = "Condo/Townhouse (Buy)"
+    case houseBuy = "House (Buy)"
+    
+    public static var allCases: [String] {
+        [
+            vacationRental.rawValue,
+            roomRent.rawValue,
+            propertyRent.rawValue,
+            condoTownhouseBuy.rawValue,
+            houseBuy.rawValue
+        ]
+    }
+}
+
+public struct Property: Identifiable, Codable, Hashable {
     @DocumentID public var id: String?
     public let managerId: String
-    public let title: String
-    public let description: String
-    public let price: Double
-    public let address: String
-    public var videoIds: [String]  // Array of video IDs associated with this property
-    public var thumbnailUrl: String?  // Thumbnail of the first/primary video
-    public let bedrooms: Int
-    public let bathrooms: Double
-    public let squareFootage: Double
+    public var title: String
+    public var description: String
+    public var price: Double
+    public var address: String
+    public var videoIds: [String]
+    public var thumbnailUrl: String?
+    public var bedrooms: Int
+    public var bathrooms: Double
+    public var squareFootage: Double
     public var viewCount: Int
     public var favoriteCount: Int
-    public let availableFrom: Date
+    public var availableFrom: Date
     public let createdAt: Date
-    public let updatedAt: Date
+    public var updatedAt: Date
     @ServerTimestamp public var serverTimestamp: Timestamp?
     public var amenities: [String: Bool]?
     public var imageUrl: String?
-    public let type: String
+    public var type: String
     public let userId: String
+    public var isAvailable: Bool
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    public static func == (lhs: Property, rhs: Property) -> Bool {
+        lhs.id == rhs.id
+    }
     
     public var uniqueIdentifier: String {
         [id ?? UUID().uuidString,
@@ -31,6 +58,26 @@ public struct Property: Identifiable, Codable {
          String(price),
          String(bedrooms),
          String(bathrooms)].joined(separator: "-")
+    }
+    
+    public var dictionary: [String: Any] {
+        [
+            "managerId": managerId,
+            "title": title,
+            "description": description,
+            "price": price,
+            "address": address,
+            "videoIds": videoIds,
+            "thumbnailUrl": thumbnailUrl as Any,
+            "bedrooms": bedrooms,
+            "bathrooms": bathrooms,
+            "squareFootage": squareFootage,
+            "availableFrom": availableFrom,
+            "amenities": amenities as Any,
+            "type": type,
+            "userId": userId,
+            "isAvailable": isAvailable
+        ]
     }
     
     enum CodingKeys: String, CodingKey {
@@ -55,6 +102,7 @@ public struct Property: Identifiable, Codable {
         case imageUrl
         case type
         case userId
+        case isAvailable
     }
     
     public init(
@@ -78,7 +126,8 @@ public struct Property: Identifiable, Codable {
         amenities: [String: Bool]? = nil,
         imageUrl: String? = nil,
         type: String,
-        userId: String
+        userId: String,
+        isAvailable: Bool = true
     ) {
         self.id = id
         self.managerId = managerId
@@ -101,6 +150,7 @@ public struct Property: Identifiable, Codable {
         self.imageUrl = imageUrl
         self.type = type
         self.userId = userId
+        self.isAvailable = isAvailable
     }
     
     public init(from decoder: Decoder) throws {
@@ -126,6 +176,7 @@ public struct Property: Identifiable, Codable {
         imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
         type = try container.decode(String.self, forKey: .type)
         userId = try container.decode(String.self, forKey: .userId)
+        isAvailable = try container.decodeIfPresent(Bool.self, forKey: .isAvailable) ?? true
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -151,5 +202,23 @@ public struct Property: Identifiable, Codable {
         try container.encodeIfPresent(imageUrl, forKey: .imageUrl)
         try container.encode(type, forKey: .type)
         try container.encode(userId, forKey: .userId)
+        try container.encode(isAvailable, forKey: .isAvailable)
+    }
+    
+    public static var preview: Property {
+        Property(
+            managerId: "preview-manager",
+            title: "Sample Property",
+            description: "A beautiful property for preview purposes",
+            price: 1500,
+            address: "123 Preview St",
+            videoIds: [],
+            bedrooms: 2,
+            bathrooms: 2,
+            squareFootage: 1200,
+            availableFrom: Date(),
+            type: "Property (Rent)",
+            userId: "preview-user"
+        )
     }
 } 

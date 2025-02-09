@@ -155,7 +155,7 @@ public final class VideoViewModel: ObservableObject {
         }
     }
     
-    public func updateVideo(_ video: Video, title: String, description: String) async throws {
+    public func updateVideo(_ videoId: String, title: String, description: String) async throws {
         guard !isLoading else { throw NSError(domain: "VideoViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
@@ -165,19 +165,45 @@ public final class VideoViewModel: ObservableObject {
         }
         
         do {
-            var updatedVideo = video
-            updatedVideo.title = title
-            updatedVideo.description = description
+            try await databaseService.updateVideo(id: videoId, data: [
+                "title": title,
+                "description": description
+            ])
             
-            try await databaseService.updateVideo(updatedVideo)
-            
-            // Update in local array
-            if let index = videos.firstIndex(where: { $0.id == video.id }) {
+            // Update in local array if present
+            if let index = videos.firstIndex(where: { $0.id == videoId }) {
+                var updatedVideo = videos[index]
+                updatedVideo.title = title
+                updatedVideo.description = description
                 videos[index] = updatedVideo
             }
         } catch {
             self.error = error
             throw error
+        }
+    }
+    
+    public func getVideo(id: String) async throws -> Video {
+        try await databaseService.getVideo(id: id)
+    }
+    
+    public func getPropertyVideos(propertyId: String) async throws -> [Video] {
+        try await withCheckedThrowingContinuation { continuation in
+            databaseService.getPropertyVideos(propertyId: propertyId)
+                .sink(
+                    receiveCompletion: { completion in
+                        switch completion {
+                        case .finished:
+                            break
+                        case .failure(let error):
+                            continuation.resume(throwing: error)
+                        }
+                    },
+                    receiveValue: { videos in
+                        continuation.resume(returning: videos)
+                    }
+                )
+                .store(in: &cancellables)
         }
     }
 } 

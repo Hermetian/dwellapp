@@ -12,10 +12,14 @@
 		042E30880010F9A50EB19C4E /* VideoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D76E58B9AC505F53ACCCBB /* VideoEditorView.swift */; };
 		09293FF239EA901C63A04BB7 /* VideoPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0928B91930DBAABE141C6C71 /* VideoPickerView.swift */; };
 		0E559C8D4E2BA9E4CBFA5430 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36BF000CDBB20B545182DCA7 /* LoginView.swift */; };
+		11BD3118658D75BCF724A6A8 /* VideoItemCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0A724C28DF2C04B0BFDA4F /* VideoItemCard.swift */; };
 		1348D4475670629EB6391EC5 /* PropertyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C27688C4F6B914CBDBECE5 /* PropertyViewModel.swift */; };
+		18127A756FB22B5AA599016B /* PropertyFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0340D6A3A27B867CBB88C36 /* PropertyFormView.swift */; };
 		1A6928B034D9A169D12FB214 /* VideoMetadataEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BE11EBDB867BF30B27CCCE /* VideoMetadataEditorView.swift */; };
 		1B06B9CE3F475EDC1CD5B58A /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E02EB21D3919DF7E7480BD /* AuthService.swift */; };
+		1B16821917732E7868FEBFA8 /* PropertyEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29018DF8116A877D75D7F7A1 /* PropertyEditSheet.swift */; };
 		1B3EDF34206668BC3C3F128D /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = F9846C8CFFC97F81FFF221A6 /* FirebaseStorage */; };
+		1C53B2F4016446FC4CDEBE67 /* LinkVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8138B7F391D7AB97BCC1FD9F /* LinkVideoView.swift */; };
 		260A3383B9CB4E527214B09B /* FilterControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 314D99D2D65AFAF8AD6D1CE6 /* FilterControl.swift */; };
 		268AD8C0E18D231D62FFE52E /* PropertyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8B50B0035819D2EEE5E5DE /* PropertyDetailView.swift */; };
 		26A33E0185920CDF34109AF1 /* VideoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49F91284FB6227673946683 /* VideoViewModel.swift */; };
@@ -30,6 +34,7 @@
 		38455FFCDAEBC931CF3230A1 /* Core_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FC0538A8BB344E1D68846D /* Core_iOS.framework */; };
 		38F6F9499271ECD5895A7307 /* VideoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84483BD2119B2D765C5EB43D /* VideoService.swift */; };
 		39B37D3040B3F0A900C1F784 /* Core_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FC0538A8BB344E1D68846D /* Core_iOS.framework */; };
+		3C9A6ED94385078C4D1562BD /* PropertyRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCA750307709995AC4D3A1D /* PropertyRowView.swift */; };
 		3D76CA0A9244DD60FE9C0F9D /* ForgotPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9957D359F347E8CF2B572E1D /* ForgotPasswordView.swift */; };
 		3F63C77CC4F312F004A897BF /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AF25B96B9C8F5EA8102BDD /* SignUpView.swift */; };
 		4262BE89486243E9DF79EFBE /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220E88C745CA999D864871A9 /* FilterView.swift */; };
@@ -62,6 +67,7 @@
 		7938866374232A8EB30E7A13 /* Views_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34E3BE063EF49C7236F6D514 /* Views_macOS.framework */; };
 		7A0687070F599F64CCC913AD /* PropertyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4A237FF6DDD90BAF3FCACD /* PropertyCard.swift */; };
 		7B330345AFA1DA3C27022114 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7567C1D9A5649E80EE85057A /* Message.swift */; };
+		7BD92BFEA0610F2236C3CAF5 /* LinkVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8138B7F391D7AB97BCC1FD9F /* LinkVideoView.swift */; };
 		7E3D9C00E9EAC3662BA9C109 /* DwellApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34D4A089CCD4D0485146AE0 /* DwellApp.swift */; };
 		80BBE46C18093A28181BB23A /* PropertyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4A237FF6DDD90BAF3FCACD /* PropertyCard.swift */; };
 		82F5BF516B2604EA8A06F8BC /* ManageVideosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8683268ACB97BB51C8EC00E6 /* ManageVideosView.swift */; };
@@ -75,6 +81,7 @@
 		90D681177C5E4C4E155E7A1E /* Core_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4BBB444A6F9018C414429894 /* Core_macOS.framework */; };
 		96FFB97FBE49749787914C91 /* EmailLinkSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E564A2FD1EE8E25A27F77 /* EmailLinkSignInView.swift */; };
 		98F1E7A277A5AE2388D1FEBE /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02EA244EEF674B695C4E4BC /* AppViewModel.swift */; };
+		994660548CD668D97887CD13 /* PropertyRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCA750307709995AC4D3A1D /* PropertyRowView.swift */; };
 		99E9BF2A5DFC02AEB5F5B5D8 /* EmailLinkSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E564A2FD1EE8E25A27F77 /* EmailLinkSignInView.swift */; };
 		9A4921169D626B5FBE0A3589 /* PropertyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8B50B0035819D2EEE5E5DE /* PropertyDetailView.swift */; };
 		9B479E24D16BD5844C0D5FD5 /* MessagingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9947D3A73D0640D2E88D172 /* MessagingViewModel.swift */; };
@@ -112,6 +119,7 @@
 		DE7B9EEBD09089D9E1547464 /* Views_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C27BFDFF4A1C5F1F5EE617CE /* Views_iOS.framework */; };
 		E15249A65E47662033E739DE /* VideoStoryboardEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B30E9A03A4ACD393377C87 /* VideoStoryboardEditor.swift */; };
 		E2C413CDDA80CE066693EF8D /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FD006204D1A5845C052C90 /* AuthViewModel.swift */; };
+		E3B2B5BD54CE0FBD6830AF10 /* PropertyEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29018DF8116A877D75D7F7A1 /* PropertyEditSheet.swift */; };
 		E48408F0EF2DACF051C37B5D /* UploadPropertyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E542B89682BDE76E8B386797 /* UploadPropertyView.swift */; };
 		E49BFA0BE5BC0FD8367F950D /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E69A0D907B7C2EC7BDD82C2C /* ProfileView.swift */; };
 		E6C65F76C0D4A0CAE776C49D /* FilterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FEEF8C93295112D269D99C7 /* FilterViewModel.swift */; };
@@ -119,9 +127,11 @@
 		E7314E79D5C0F053FCFAF1FB /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FAD2187C71870BF1CBF4A5D0 /* GoogleService-Info.plist */; };
 		EA8239D4283CD76505231841 /* PropertyVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B959C81FECE4A46F52D052 /* PropertyVideo.swift */; };
 		EBB2A4C173D0E1E5CECAAD42 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E69A0D907B7C2EC7BDD82C2C /* ProfileView.swift */; };
+		EDB945A6C4D933D339BF5E16 /* PropertyFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0340D6A3A27B867CBB88C36 /* PropertyFormView.swift */; };
 		EF17D2D5E60CA420CA9BF636 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A77BB1A9BAFDA337B461B7 /* AuthView.swift */; };
 		EF61B1B2D026C37F2AC165F8 /* Core_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FC0538A8BB344E1D68846D /* Core_iOS.framework */; };
 		EFD52A7AADA6FA56DBED591E /* FirebaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66997A68E4F4B264E79D138 /* FirebaseConfig.swift */; };
+		F07559501EE3A37AACBFAC50 /* VideoItemCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0A724C28DF2C04B0BFDA4F /* VideoItemCard.swift */; };
 		F51059B1DA2EA5FD6C387483 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DD042879A66C7834F4FB239 /* Conversation.swift */; };
 		F7045D1D1DB67B09A9E5C288 /* ViewModels_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E9AE3183F15AF88203927222 /* ViewModels_macOS.framework */; };
 		F8A6FE4AC196719D4BED2633 /* RadialMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4097A710AE14663E5C21BAAB /* RadialMenu.swift */; };
@@ -257,6 +267,7 @@
 		22BB2E82E6877A905E0EE7B9 /* RangeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeSlider.swift; sourceTree = "<group>"; };
 		251E564A2FD1EE8E25A27F77 /* EmailLinkSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailLinkSignInView.swift; sourceTree = "<group>"; };
 		26E02EB21D3919DF7E7480BD /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		29018DF8116A877D75D7F7A1 /* PropertyEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyEditSheet.swift; sourceTree = "<group>"; };
 		314D99D2D65AFAF8AD6D1CE6 /* FilterControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterControl.swift; sourceTree = "<group>"; };
 		33F7D9C98318B3E43605AD60 /* DatabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseService.swift; sourceTree = "<group>"; };
 		34E3BE063EF49C7236F6D514 /* Views_macOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Views_macOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -265,11 +276,14 @@
 		42061F95C55C889FD4FB2BBB /* ManagePropertiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagePropertiesView.swift; sourceTree = "<group>"; };
 		45CB3F0ED998C2E3A1EDC433 /* MessagingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagingView.swift; sourceTree = "<group>"; };
 		4BBB444A6F9018C414429894 /* Core_macOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Core_macOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4E0A724C28DF2C04B0BFDA4F /* VideoItemCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoItemCard.swift; sourceTree = "<group>"; };
 		5056B2623ABA832E6BE31A76 /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
 		51B30E9A03A4ACD393377C87 /* VideoStoryboardEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStoryboardEditor.swift; sourceTree = "<group>"; };
+		5FCA750307709995AC4D3A1D /* PropertyRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyRowView.swift; sourceTree = "<group>"; };
 		6C3E0326AA95633E25E8F4F7 /* Dwell_macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dwell_macOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7567C1D9A5649E80EE85057A /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		7DD042879A66C7834F4FB239 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
+		8138B7F391D7AB97BCC1FD9F /* LinkVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkVideoView.swift; sourceTree = "<group>"; };
 		84483BD2119B2D765C5EB43D /* VideoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoService.swift; sourceTree = "<group>"; };
 		84B959C81FECE4A46F52D052 /* PropertyVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyVideo.swift; sourceTree = "<group>"; };
 		8683268ACB97BB51C8EC00E6 /* ManageVideosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageVideosView.swift; sourceTree = "<group>"; };
@@ -289,6 +303,7 @@
 		B9FC0538A8BB344E1D68846D /* Core_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Core_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		BD48C65B7FE8275519EE5EEC /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
 		BF87AC73E6A8A9C2120976F9 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		C0340D6A3A27B867CBB88C36 /* PropertyFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyFormView.swift; sourceTree = "<group>"; };
 		C27BFDFF4A1C5F1F5EE617CE /* Views_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Views_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6FD006204D1A5845C052C90 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		C76A9346710659F40B5CD95A /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
@@ -391,9 +406,14 @@
 			children = (
 				AFCE76A4FB1DC06FAEB29403 /* ClipTrimControls.swift */,
 				314D99D2D65AFAF8AD6D1CE6 /* FilterControl.swift */,
+				8138B7F391D7AB97BCC1FD9F /* LinkVideoView.swift */,
+				29018DF8116A877D75D7F7A1 /* PropertyEditSheet.swift */,
+				C0340D6A3A27B867CBB88C36 /* PropertyFormView.swift */,
+				5FCA750307709995AC4D3A1D /* PropertyRowView.swift */,
 				4097A710AE14663E5C21BAAB /* RadialMenu.swift */,
 				22BB2E82E6877A905E0EE7B9 /* RangeSlider.swift */,
 				D8D76E58B9AC505F53ACCCBB /* VideoEditorView.swift */,
+				4E0A724C28DF2C04B0BFDA4F /* VideoItemCard.swift */,
 				0928B91930DBAABE141C6C71 /* VideoPickerView.swift */,
 			);
 			path = Components;
@@ -767,6 +787,7 @@
 				9E8E0C1C03E9DF8CB0B137DC /* FilterControl.swift in Sources */,
 				4262BE89486243E9DF79EFBE /* FilterView.swift in Sources */,
 				3D76CA0A9244DD60FE9C0F9D /* ForgotPasswordView.swift in Sources */,
+				7BD92BFEA0610F2236C3CAF5 /* LinkVideoView.swift in Sources */,
 				0E559C8D4E2BA9E4CBFA5430 /* LoginView.swift in Sources */,
 				BB7FB54A9683B1966AE97302 /* MainTabView.swift in Sources */,
 				FAF8A5C95232C57852959E27 /* ManagePropertiesView.swift in Sources */,
@@ -775,12 +796,16 @@
 				E49BFA0BE5BC0FD8367F950D /* ProfileView.swift in Sources */,
 				80BBE46C18093A28181BB23A /* PropertyCard.swift in Sources */,
 				268AD8C0E18D231D62FFE52E /* PropertyDetailView.swift in Sources */,
+				E3B2B5BD54CE0FBD6830AF10 /* PropertyEditSheet.swift in Sources */,
+				EDB945A6C4D933D339BF5E16 /* PropertyFormView.swift in Sources */,
+				994660548CD668D97887CD13 /* PropertyRowView.swift in Sources */,
 				85BB73228DEB6F27B69D56FB /* RadialMenu.swift in Sources */,
 				A754FB6878AC10014B9B9F33 /* RangeSlider.swift in Sources */,
 				58D51FC77B5535AC8722FEC8 /* RootView.swift in Sources */,
 				3F63C77CC4F312F004A897BF /* SignUpView.swift in Sources */,
 				E48408F0EF2DACF051C37B5D /* UploadPropertyView.swift in Sources */,
 				042E30880010F9A50EB19C4E /* VideoEditorView.swift in Sources */,
+				11BD3118658D75BCF724A6A8 /* VideoItemCard.swift in Sources */,
 				5DAD244E60F1D4562BECF27F /* VideoMetadataEditorView.swift in Sources */,
 				09293FF239EA901C63A04BB7 /* VideoPickerView.swift in Sources */,
 				E15249A65E47662033E739DE /* VideoStoryboardEditor.swift in Sources */,
@@ -833,6 +858,7 @@
 				260A3383B9CB4E527214B09B /* FilterControl.swift in Sources */,
 				B13965D8C09ED9C000FA6EB5 /* FilterView.swift in Sources */,
 				455974EAA540A69C9AF9ECCE /* ForgotPasswordView.swift in Sources */,
+				1C53B2F4016446FC4CDEBE67 /* LinkVideoView.swift in Sources */,
 				562E0B3745EBECBF35FB65D5 /* LoginView.swift in Sources */,
 				6769441CE94EBD795F76DE8C /* MainTabView.swift in Sources */,
 				CD0D79762E927F62D9B0721F /* ManagePropertiesView.swift in Sources */,
@@ -841,12 +867,16 @@
 				EBB2A4C173D0E1E5CECAAD42 /* ProfileView.swift in Sources */,
 				7A0687070F599F64CCC913AD /* PropertyCard.swift in Sources */,
 				9A4921169D626B5FBE0A3589 /* PropertyDetailView.swift in Sources */,
+				1B16821917732E7868FEBFA8 /* PropertyEditSheet.swift in Sources */,
+				18127A756FB22B5AA599016B /* PropertyFormView.swift in Sources */,
+				3C9A6ED94385078C4D1562BD /* PropertyRowView.swift in Sources */,
 				F8A6FE4AC196719D4BED2633 /* RadialMenu.swift in Sources */,
 				B1698842CF22603835D1FA9C /* RangeSlider.swift in Sources */,
 				B7DE6514149010F03DC454D7 /* RootView.swift in Sources */,
 				2DFB1FC94B51C1C168408BF5 /* SignUpView.swift in Sources */,
 				DDCC9FEE49B1264EE425F800 /* UploadPropertyView.swift in Sources */,
 				D3286BA6535DEE0F5289BB07 /* VideoEditorView.swift in Sources */,
+				F07559501EE3A37AACBFAC50 /* VideoItemCard.swift in Sources */,
 				1A6928B034D9A169D12FB214 /* VideoMetadataEditorView.swift in Sources */,
 				017739867534B2491B0CF652 /* VideoPickerView.swift in Sources */,
 				462A66891D081AC871A5164E /* VideoStoryboardEditor.swift in Sources */,

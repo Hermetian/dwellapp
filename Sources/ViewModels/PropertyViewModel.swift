@@ -81,30 +81,9 @@ public final class PropertyViewModel: ObservableObject {
         error = nil
         
         do {
-            let newProperties = try await withCheckedThrowingContinuation { continuation in
-                databaseService.getPropertiesStream(limit: pageSize, lastPropertyId: lastPropertyId)
-                    .sink(
-                        receiveCompletion: { completion in
-                            switch completion {
-                            case .finished:
-                                break
-                            case .failure(let error):
-                                continuation.resume(throwing: error)
-                            }
-                        },
-                        receiveValue: { properties in
-                            continuation.resume(returning: properties)
-                        }
-                    )
-                    .store(in: &cancellables)
-            }
-            
-            if newProperties.isEmpty {
-                hasMoreProperties = false
-            } else {
-                properties.append(contentsOf: newProperties)
-                lastPropertyId = newProperties.last?.id
-            }
+            // Simple one-time fetch of properties
+            let fetchedProperties = try await databaseService.getProperties()
+            properties = fetchedProperties
         } catch {
             self.error = error
             isLoading = false
@@ -308,7 +287,22 @@ public final class PropertyViewModel: ObservableObject {
         
         do {
             try await databaseService.updateProperty(id: id, data: data)
-            try await loadProperties()
+            
+            // Update the property in our local array instead of reloading everything
+            if let index = properties.firstIndex(where: { $0.id == id }) {
+                var updatedProperty = properties[index]
+                for (key, value) in data {
+                    switch key {
+                    case "isAvailable":
+                        if let boolValue = value as? Bool {
+                            updatedProperty.isAvailable = boolValue
+                        }
+                    // Add other cases as needed
+                    default: break
+                    }
+                }
+                properties[index] = updatedProperty
+            }
         } catch {
             self.error = error
             throw error

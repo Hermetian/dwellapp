@@ -440,4 +440,32 @@ public class DatabaseService: ObservableObject {
     public func deleteVideo(id: String) async throws {
         try await db.collection("videos").document(id).delete()
     }
+    
+    public func getVideo(id: String) async throws -> Video {
+        let snapshot = try await db.collection("videos").document(id).getDocument()
+        guard let data = snapshot.data(), snapshot.exists else {
+            throw NSError(domain: "DatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Video not found"])
+        }
+        
+        var video = try Firestore.Decoder().decode(Video.self, from: data)
+        video.id = snapshot.documentID
+        return video
+    }
+    
+    public func updateVideo(id: String, data: [String: Any]) async throws {
+        try await db.collection("videos").document(id).updateData(data)
+    }
+    
+    // One-time fetch of properties
+    public func getProperties() async throws -> [Property] {
+        let query = db.collection("properties")
+            .order(by: "createdAt", descending: true)
+        
+        let snapshot = try await query.getDocuments()
+        return try snapshot.documents.map { document in
+            var property = try document.data(as: Property.self)
+            property.id = document.documentID
+            return property
+        }
+    }
 } 
