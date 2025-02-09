@@ -12,6 +12,7 @@ struct UploadPropertyView: View {
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var previewState = PreviewState()
+    @State private var refreshID = UUID()
     
     let amenitiesList = ["Parking", "Pool", "Gym", "Elevator", "Security", "Furnished", "Pets Allowed", "Laundry"]
     let propertyTypes = [
@@ -46,20 +47,21 @@ struct UploadPropertyView: View {
     struct PreviewState {
         var isShowing = false
         var url: URL? = nil
+        var player: AVPlayer? = nil
     }
     
     var body: some View {
         VStack {
-            Form {
-                Section(header: Text("Basic Information")) {
+        Form {
+            Section(header: Text("Basic Information")) {
                     TextField("Title", text: $appViewModel.propertyViewModel.draftTitle)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        #if os(iOS)
-                        .textInputAutocapitalization(.words)
-                        #endif
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
+                    .textInputAutocapitalization(.words)
+                    #endif
                     TextField("Description", text: $appViewModel.propertyViewModel.draftDescription, axis: .vertical)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .lineLimit(3...6)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .lineLimit(3...6)
                     
                     Picker("Property Type", selection: $appViewModel.propertyViewModel.draftPropertyType) {
                         ForEach(propertyTypes, id: \.self) { type in
@@ -69,40 +71,41 @@ struct UploadPropertyView: View {
                     
                     HStack {
                         TextField("Price", text: $appViewModel.propertyViewModel.draftPrice)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            #if os(iOS)
-                            .keyboardType(.decimalPad)
-                            #endif
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
+                    .keyboardType(.decimalPad)
+                    #endif
                         Text(pricingHint)
                             .foregroundColor(.gray)
                             .font(.caption)
                     }
                     
                     TextField("Address", text: $appViewModel.propertyViewModel.draftAddress)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        #if os(iOS)
-                        .textInputAutocapitalization(.words)
-                        #endif
-                }
-                
-                Section(header: Text("Specifications")) {
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
+                    .textInputAutocapitalization(.words)
+                    #endif
+            }
+            
+            Section(header: Text("Specifications")) {
                     Stepper("Bedrooms: \(appViewModel.propertyViewModel.draftBedrooms)", value: $appViewModel.propertyViewModel.draftBedrooms, in: 1...10)
                     Stepper("Bathrooms: \(appViewModel.propertyViewModel.draftBathrooms)", value: $appViewModel.propertyViewModel.draftBathrooms, in: 1...10)
                     TextField("Square Footage", text: $appViewModel.propertyViewModel.draftSquareFootage)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        #if os(iOS)
-                        .keyboardType(.decimalPad)
-                        #endif
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    #if os(iOS)
+                    .keyboardType(.decimalPad)
+                    #endif
                     DatePicker("Available From", selection: $appViewModel.propertyViewModel.draftAvailableDate, displayedComponents: .date)
-                }
-                
+            }
+            
                 Section(header: Text("Videos")) {
-                    PhotosPicker(selection: $selectedVideo, matching: .videos) {
+                PhotosPicker(selection: $selectedVideo, matching: .videos) {
                         Label("Add Video", systemImage: "video.badge.plus")
                     }
                     
-                    ForEach(appViewModel.propertyViewModel.draftSelectedVideos) { video in
-                        VStack(alignment: .leading) {
+                    ForEach(appViewModel.propertyViewModel.draftSelectedVideos, id: \.id) { video in
+                        VStack(alignment: .leading, spacing: 8) {
+                            // Title field - explicitly interactive
                             TextField("Video Title", text: Binding(
                                 get: { video.title.isEmpty ? "" : video.title },
                                 set: { newValue in
@@ -111,9 +114,10 @@ struct UploadPropertyView: View {
                                     }
                                 }
                             ))
-                            .font(.headline)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.horizontal, 4)
                             
+                            // Description field - explicitly interactive
                             TextField("Video Description", text: Binding(
                                 get: { video.description.isEmpty ? "" : video.description },
                                 set: { newValue in
@@ -122,33 +126,57 @@ struct UploadPropertyView: View {
                                     }
                                 }
                             ))
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.horizontal, 4)
                             
-                            HStack {
+                            // Action buttons in their own container
+                            HStack(spacing: 20) {
                                 Button {
                                     print("Preview button pressed for video: \(video.title)")
                                     previewState.url = video.url
+                                    previewState.player = AVPlayer(url: video.url)
                                     previewState.isShowing = true
                                 } label: {
-                                    Label("Preview", systemImage: "play.circle")
+                                    HStack {
+                                        Image(systemName: "play.circle")
+                                        Text("Preview")
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue.opacity(0.1))
+                                    .foregroundColor(.blue)
+                                    .cornerRadius(8)
                                 }
+                                .buttonStyle(BorderlessButtonStyle())
                                 
-                                Spacer()
-                                
-                                Button(role: .destructive) {
+                                Button {
                                     print("Delete button pressed for video: \(video.title)")
-                                    withAnimation {
+                                    withAnimation(.easeInOut) {
                                         appViewModel.propertyViewModel.draftSelectedVideos.removeAll { $0.id == video.id }
+                                        refreshID = UUID()
                                     }
                                 } label: {
-                                    Label("Remove", systemImage: "trash")
+                                    HStack {
+                                        Image(systemName: "trash")
+                                        Text("Remove")
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.red.opacity(0.1))
+                                    .foregroundColor(.red)
+                                    .cornerRadius(8)
                                 }
+                                .buttonStyle(BorderlessButtonStyle())
+                                
+                                Spacer()
                             }
-                            .padding(.top, 4)
+                            .padding(.horizontal, 4)
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 8)
+                        .background(Color.clear)
+                        .contentShape(Rectangle())
+                        .transition(.opacity.combined(with: .scale))
+                        .id(refreshID)
                     }
                 }
                 
@@ -156,17 +184,17 @@ struct UploadPropertyView: View {
                     Section {
                         Text("\(appViewModel.propertyViewModel.draftSelectedVideos.count) video\(appViewModel.propertyViewModel.draftSelectedVideos.count == 1 ? "" : "s") selected")
                             .foregroundColor(.gray)
-                    }
                 }
-                
-                Section(header: Text("Amenities")) {
-                    ForEach(amenitiesList, id: \.self) { amenity in
-                        Toggle(amenity, isOn: Binding(
+            }
+            
+            Section(header: Text("Amenities")) {
+                ForEach(amenitiesList, id: \.self) { amenity in
+                    Toggle(amenity, isOn: Binding(
                             get: { appViewModel.propertyViewModel.draftSelectedAmenities.contains(amenity) },
-                            set: { isSelected in
-                                if isSelected {
+                        set: { isSelected in
+                            if isSelected {
                                     appViewModel.propertyViewModel.draftSelectedAmenities.insert(amenity)
-                                } else {
+                            } else {
                                     appViewModel.propertyViewModel.draftSelectedAmenities.remove(amenity)
                                 }
                             }
@@ -223,16 +251,39 @@ struct UploadPropertyView: View {
             }
         }
         .sheet(isPresented: $previewState.isShowing) {
-            Group {
-                if let videoURL = previewState.url {
-                    VideoPlayer(player: AVPlayer(url: videoURL))
-                        .frame(height: 300)
+            NavigationView {
+                GeometryReader { geometry in
+                    ZStack {
+                        Color(.systemBackground)
+                            .edgesIgnoringSafeArea(.all)
+                        
+                        if let player = previewState.player {
+                            ZStack {
+                                Color(.systemBackground)
+                                VideoPlayer(player: player)
+                                    .background(Color(.systemBackground))
+                            }
+                            .aspectRatio(16/9, contentMode: .fit)
+                            .frame(width: geometry.size.width)
+                            .frame(maxHeight: .infinity)
+                            .onAppear {
+                                player.play()
+                            }
+                            .onDisappear {
+                                player.pause()
+                                previewState.player = nil
+                            }
+                        }
+                    }
                 }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        previewState.isShowing = false
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            previewState.player?.pause()
+                            previewState.player = nil
+                            previewState.isShowing = false
+                        }
                     }
                 }
             }

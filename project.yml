@@ -178,10 +178,10 @@ targets:
         embed: true
       - target: ViewModels_iOS
         link: true
-        embed: false
+        embed: true
       - target: Views_iOS
         link: true
-        embed: false
+        embed: true
     settings:
       base:
         INFOPLIST_FILE: Sources/Info.plist

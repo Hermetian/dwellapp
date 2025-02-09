@@ -14,6 +14,7 @@ public struct PropertyDetailView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var videos: [Video] = []
+    @State private var previewPlayer: AVPlayer?
     
     private var isFavorited: Bool {
         appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id }
@@ -148,17 +149,41 @@ public struct PropertyDetailView: View {
             Text(errorMessage)
         }
         .sheet(isPresented: $showingVideo) {
-            if let videoId = selectedVideoId,
-               let video = videos.first(where: { video in video.id == videoId }),
-               let videoURL = URL(string: video.videoUrl) {
-                #if os(iOS)
-                VideoPlayer(player: AVPlayer(url: videoURL))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .edgesIgnoringSafeArea(.all)
-                #else
-                VideoPlayer(player: AVPlayer(url: videoURL))
-                    .frame(minHeight: 400)
-                #endif
+            NavigationView {
+                GeometryReader { geometry in
+                    ZStack {
+                        Color(.systemBackground)
+                            .edgesIgnoringSafeArea(.all)
+                        
+                        if let videoId = selectedVideoId,
+                           let video = videos.first(where: { video in video.id == videoId }),
+                           let videoURL = URL(string: video.videoUrl) {
+                            VideoPlayer(player: previewPlayer ?? AVPlayer(url: videoURL))
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .edgesIgnoringSafeArea(.all)
+                                .onAppear {
+                                    if previewPlayer == nil {
+                                        previewPlayer = AVPlayer(url: videoURL)
+                                    }
+                                    previewPlayer?.play()
+                                }
+                                .onDisappear {
+                                    previewPlayer?.pause()
+                                    previewPlayer = nil
+                                }
+                        }
+                    }
+                }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            previewPlayer?.pause()
+                            previewPlayer = nil
+                            showingVideo = false
+                        }
+                    }
+                }
             }
         }
         .sheet(isPresented: $showingContact) {

@@ -220,12 +220,19 @@ private struct VideoPlayerCard: View {
     @StateObject private var playerVM = VideoPlayerViewModel()
     @State private var property: Property?
     @State private var isLoading = true
+    @State private var showPreview = false
+    @State private var previewPlayer: AVPlayer?
     
     var body: some View {
         ZStack {
+            // Background layer - explicitly non-interactive
+            Color.black
+                .allowsHitTesting(false)
+            
             if let player = playerVM.player {
                 VideoPlayer(player: player)
                     .disabled(true)
+                    .allowsHitTesting(false)
             }
             
             // Video controls and info overlay
@@ -233,7 +240,7 @@ private struct VideoPlayerCard: View {
                 Spacer()
                 
                 HStack(alignment: .bottom) {
-                    // Video info
+                    // Video info - non-interactive area
                 VStack(alignment: .leading, spacing: 8) {
                         Text(video.title)
                             .font(.headline)
@@ -274,20 +281,25 @@ private struct VideoPlayerCard: View {
                     }
                     .padding()
                     .foregroundColor(.white)
+                    .allowsHitTesting(false) // Make text non-interactive
                     
                     Spacer()
                     
-                    // Action buttons
+                    // Action buttons - explicitly interactive area
                     VStack(spacing: 20) {
                         Button {
-                            // Like functionality
+                            print("Preview button pressed for video: \(video.title)")
+                            showPreview = true
                         } label: {
                             VStack {
-                                Image(systemName: "heart.fill")
+                                Image(systemName: "play.circle.fill")
                                     .font(.title)
-                                Text("Like")
+                                Text("Preview")
                                     .font(.caption)
                             }
+                            .padding(8)
+                            .background(Color.white.opacity(0.2))
+                            .cornerRadius(8)
                         }
                         
                         Button {
@@ -299,6 +311,9 @@ private struct VideoPlayerCard: View {
                                 Text("Share")
                                     .font(.caption)
                             }
+                            .padding(8)
+                            .background(Color.white.opacity(0.2))
+                            .cornerRadius(8)
                         }
                     }
                     .foregroundColor(.white)
@@ -326,6 +341,34 @@ private struct VideoPlayerCard: View {
         }
         .onDisappear {
             playerVM.pause()
+            previewPlayer?.pause()
+            previewPlayer = nil
+        }
+        .sheet(isPresented: $showPreview) {
+            NavigationView {
+                Group {
+                    if let url = URL(string: video.videoUrl) {
+                        VideoPlayer(player: AVPlayer(url: url))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .edgesIgnoringSafeArea(.all)
+                            .onAppear {
+                                // Initialize and play the preview player
+                                previewPlayer = AVPlayer(url: url)
+                                previewPlayer?.play()
+                            }
+                    }
+                }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            previewPlayer?.pause()
+                            previewPlayer = nil
+                            showPreview = false
+                        }
+                    }
+                }
+            }
         }
     }
     
