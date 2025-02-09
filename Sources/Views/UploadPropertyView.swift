@@ -35,12 +35,8 @@ struct UploadPropertyView: View {
     }
     
     var isFormValid: Bool {
-        !appViewModel.propertyViewModel.draftTitle.isEmpty && 
-        !appViewModel.propertyViewModel.draftDescription.isEmpty && 
-        !appViewModel.propertyViewModel.draftPrice.isEmpty &&
-        !appViewModel.propertyViewModel.draftAddress.isEmpty && 
-        !appViewModel.propertyViewModel.draftSquareFootage.isEmpty && 
-        !appViewModel.propertyViewModel.draftSelectedVideos.isEmpty
+        !appViewModel.propertyViewModel.draftTitle.isEmpty &&
+        !appViewModel.propertyViewModel.draftPrice.isEmpty
     }
     
     // Add a separate preview state
@@ -103,35 +99,19 @@ struct UploadPropertyView: View {
                         Label("Add Video", systemImage: "video.badge.plus")
                     }
                     
-                    ForEach(appViewModel.propertyViewModel.draftSelectedVideos, id: \.id) { video in
+                    ForEach(Array(appViewModel.propertyViewModel.draftSelectedVideos.enumerated()), id: \.element.id) { index, _ in
                         VStack(alignment: .leading, spacing: 8) {
-                            // Title field - explicitly interactive
-                            TextField("Video Title", text: Binding(
-                                get: { video.title.isEmpty ? "" : video.title },
-                                set: { newValue in
-                                    if let index = appViewModel.propertyViewModel.draftSelectedVideos.firstIndex(where: { $0.id == video.id }) {
-                                        appViewModel.propertyViewModel.draftSelectedVideos[index].title = newValue
-                                    }
-                                }
-                            ))
+                            TextField("Video Title", text: $appViewModel.propertyViewModel.draftSelectedVideos[index].title)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding(.horizontal, 4)
                             
-                            // Description field - explicitly interactive
-                            TextField("Video Description", text: Binding(
-                                get: { video.description.isEmpty ? "" : video.description },
-                                set: { newValue in
-                                    if let index = appViewModel.propertyViewModel.draftSelectedVideos.firstIndex(where: { $0.id == video.id }) {
-                                        appViewModel.propertyViewModel.draftSelectedVideos[index].description = newValue
-                                    }
-                                }
-                            ))
+                            TextField("Video Description", text: $appViewModel.propertyViewModel.draftSelectedVideos[index].description)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding(.horizontal, 4)
                             
-                            // Action buttons in their own container
                             HStack(spacing: 20) {
                                 Button {
+                                    let video = appViewModel.propertyViewModel.draftSelectedVideos[index]
                                     print("Preview button pressed for video: \(video.title)")
                                     previewState.url = video.url
                                     previewState.player = AVPlayer(url: video.url)
@@ -150,10 +130,10 @@ struct UploadPropertyView: View {
                                 .buttonStyle(BorderlessButtonStyle())
                                 
                                 Button {
+                                    let video = appViewModel.propertyViewModel.draftSelectedVideos[index]
                                     print("Delete button pressed for video: \(video.title)")
                                     withAnimation(.easeInOut) {
-                                        appViewModel.propertyViewModel.draftSelectedVideos.removeAll { $0.id == video.id }
-                                        refreshID = UUID()
+                                        appViewModel.propertyViewModel.draftSelectedVideos.remove(at: index)
                                     }
                                 } label: {
                                     HStack {
@@ -176,7 +156,6 @@ struct UploadPropertyView: View {
                         .background(Color.clear)
                         .contentShape(Rectangle())
                         .transition(.opacity.combined(with: .scale))
-                        .id(refreshID)
                     }
                 }
                 
@@ -299,53 +278,55 @@ struct UploadPropertyView: View {
     }
     
     private func uploadProperty() {
-        guard let userId = appViewModel.authViewModel.currentUser?.id else { return }
-        
-        // Create property without videos first
-        let property = Property(
-            managerId: userId,
-            title: appViewModel.propertyViewModel.draftTitle,
-            description: appViewModel.propertyViewModel.draftDescription,
-            price: Double(appViewModel.propertyViewModel.draftPrice) ?? 0,
-            address: appViewModel.propertyViewModel.draftAddress,
-            videoIds: [], // Will be updated after video uploads
-            bedrooms: appViewModel.propertyViewModel.draftBedrooms,
-            bathrooms: Double(appViewModel.propertyViewModel.draftBathrooms),
-            squareFootage: Double(appViewModel.propertyViewModel.draftSquareFootage) ?? 0,
-            availableFrom: appViewModel.propertyViewModel.draftAvailableDate,
-            type: appViewModel.propertyViewModel.draftPropertyType,
-            userId: userId
-        )
+        print("🚀 Starting property upload")
+        guard let userId = appViewModel.authViewModel.currentUser?.id else {
+            print("❌ Error: No user ID found")
+            return
+        }
+        print("👤 User ID: \(userId)")
         
         Task {
             do {
-                // Create property first
-                let propertyId = try await appViewModel.propertyViewModel.createProperty(property)
+                print("📝 Creating property with:")
+                print("- Title: \(appViewModel.propertyViewModel.draftTitle)")
+                print("- Type: \(appViewModel.propertyViewModel.draftPropertyType)")
+                print("- Videos count: \(appViewModel.propertyViewModel.draftSelectedVideos.count)")
                 
-                // Upload all videos
-                var videoIds: [String] = []
-                for video in appViewModel.propertyViewModel.draftSelectedVideos {
-                    let videoId = try await appViewModel.videoViewModel.uploadVideo(
-                        url: video.url,
-                        propertyId: propertyId,
-                        title: video.title,
-                        description: video.description,
-                        userId: userId
-                    )
-                    videoIds.append(videoId)
-                }
+                // Create property without videos first
+                let property = Property(
+                    managerId: userId,
+                    title: appViewModel.propertyViewModel.draftTitle,
+                    description: appViewModel.propertyViewModel.draftDescription,
+                    price: Double(appViewModel.propertyViewModel.draftPrice) ?? 0,
+                    address: appViewModel.propertyViewModel.draftAddress,
+                    videoIds: [], // Will be updated after video uploads
+                    bedrooms: appViewModel.propertyViewModel.draftBedrooms,
+                    bathrooms: Double(appViewModel.propertyViewModel.draftBathrooms),
+                    squareFootage: Double(appViewModel.propertyViewModel.draftSquareFootage) ?? 0,
+                    availableFrom: appViewModel.propertyViewModel.draftAvailableDate,
+                    type: appViewModel.propertyViewModel.draftPropertyType,
+                    userId: userId
+                )
                 
-                // Update property with video IDs
-                if !videoIds.isEmpty {
-                    try await appViewModel.propertyViewModel.updateProperty(
-                        id: propertyId,
-                        data: ["videoIds": videoIds]
-                    )
-                }
+                print("🏗️ Property object created, calling createPropertyWithVideos...")
+                
+                // Create property and handle video uploads in one atomic operation
+                _ = try await appViewModel.propertyViewModel.createPropertyWithVideos(
+                    property,
+                    videos: appViewModel.propertyViewModel.draftSelectedVideos,
+                    userId: userId
+                )
+                
+                print("✅ Property creation successful")
+                print("🔄 Refreshing properties list...")
+                try await appViewModel.propertyViewModel.loadProperties()
+                print("✅ Properties refreshed")
                 
                 alertMessage = "Property listed successfully!"
                 showAlert = true
             } catch {
+                print("❌ Upload error: \(error.localizedDescription)")
+                print("📝 Error details: \(String(describing: error))")
                 alertMessage = "Error: \(error.localizedDescription)"
                 showAlert = true
             }

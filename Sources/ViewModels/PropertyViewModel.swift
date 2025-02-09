@@ -353,4 +353,78 @@ public final class PropertyViewModel: ObservableObject {
         draftSelectedAmenities = []
         draftPropertyType = "Property (Rent)"
     }
+    
+    public func createPropertyWithVideos(_ property: Property, videos: [VideoItem], userId: String) async throws -> String {
+        print("🚀 Starting createPropertyWithVideos")
+        print("📝 Property details - Title: \(property.title), Type: \(property.type)")
+        print("🎥 Number of videos to upload: \(videos.count)")
+        
+        guard !isLoading else {
+            print("❌ Error: Operation already in progress")
+            throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"])
+        }
+        
+        print("✅ Loading check passed")
+        isLoading = true
+        error = nil
+        
+        defer {
+            print("🔄 Resetting isLoading state")
+            isLoading = false
+        }
+        
+        do {
+            print("📦 Creating property in database...")
+            let propertyId = try await databaseService.createProperty(property)
+            print("✅ Property created with ID: \(propertyId)")
+            
+            // Upload all videos
+            var videoIds: [String] = []
+            for (index, video) in videos.enumerated() {
+                print("🎬 Uploading video \(index + 1)/\(videos.count)")
+                print("📹 Video details - Title: \(video.title), URL: \(video.url)")
+                
+                do {
+                    let uploadedVideo = try await videoService.uploadVideo(
+                        url: video.url,
+                        title: video.title,
+                        description: video.description,
+                        videoType: .property,
+                        propertyId: propertyId,
+                        userId: userId
+                    )
+                    
+                    print("🎥 Video uploaded, returned object: \(String(describing: uploadedVideo))")
+                    if let videoId = uploadedVideo.id {
+                        print("✅ Got video ID: \(videoId)")
+                        videoIds.append(videoId)
+                    } else {
+                        print("⚠️ Warning: Uploaded video has no ID")
+                    }
+                } catch {
+                    print("❌ Error uploading video: \(error.localizedDescription)")
+                    throw error
+                }
+            }
+            
+            print("📊 Total video IDs collected: \(videoIds.count)")
+            
+            // Update property with video IDs if we have any
+            if !videoIds.isEmpty {
+                print("🔄 Updating property with video IDs...")
+                try await databaseService.updateProperty(id: propertyId, data: ["videoIds": videoIds])
+                print("✅ Property updated with video IDs")
+            } else {
+                print("ℹ️ No videos to link to property")
+            }
+            
+            print("🎉 Operation completed successfully")
+            return propertyId
+        } catch {
+            print("❌ Error in createPropertyWithVideos: \(error.localizedDescription)")
+            print("📝 Error details: \(String(describing: error))")
+            self.error = error
+            throw error
+        }
+    }
 } 
