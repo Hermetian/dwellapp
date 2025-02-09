@@ -119,43 +119,75 @@ private struct ClipFilterControls: View {
 }
 
 private struct VideoPreviewSection: View {
-    let player: AVPlayer?
+    let currentPlayer: AVPlayer?
+    let stitchedPlayer: AVPlayer?
     let isProcessing: Bool
     
     var body: some View {
-        Group {
-            if let player = player {
-                VideoPlayer(player: player)
-                    .frame(height: 250)
-                    .cornerRadius(12)
-                    .overlay(processingOverlay)
-            } else {
-                emptyPreview
+            VStack(spacing: 16) {
+            // Current clip preview
+            Group {
+                if let player = currentPlayer {
+                    VideoPlayer(player: player)
+                        .overlay(processingOverlay)
+                } else {
+                    emptyPreview
+                }
             }
+                        .frame(height: 250)
+                        .cornerRadius(12)
+                        .overlay(
+                Text("Selected Clip")
+                    .font(.caption)
+                    .padding(4)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(4)
+                    .padding(8),
+                alignment: .topLeading
+            )
+            
+            // Stitched preview
+                            Group {
+                if let player = stitchedPlayer {
+                    VideoPlayer(player: player)
+                        .overlay(processingOverlay)
+                } else {
+                    emptyPreview
+                }
+            }
+            .frame(height: 250)
+            .cornerRadius(12)
+            .overlay(
+                Text("Final Video")
+                    .font(.caption)
+                    .padding(4)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(4)
+                    .padding(8),
+                alignment: .topLeading
+            )
         }
     }
     
     @ViewBuilder
     private var processingOverlay: some View {
-        if isProcessing {
+                                if isProcessing {
             ZStack {
-                Color.black.opacity(0.5)
-                ProgressView()
-                    .tint(.white)
-            }
-        }
+                                    Color.black.opacity(0.5)
+                                    ProgressView()
+                                        .tint(.white)
+                                }
+                            }
     }
     
     private var emptyPreview: some View {
-        Rectangle()
-            .fill(Color.gray.opacity(0.2))
-            .frame(height: 250)
-            .cornerRadius(12)
-            .overlay(
-                Label("No clips added", systemImage: "film")
-                    .foregroundColor(.gray)
-            )
-    }
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .overlay(
+                Label("No video", systemImage: "film")
+                                .foregroundColor(.gray)
+                        )
+                }
 }
 
 private struct TimelineSection: View {
@@ -166,15 +198,15 @@ private struct TimelineSection: View {
     let onUploadNew: () -> Void
     
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(clips.indices, id: \.self) { index in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(clips.indices, id: \.self) { index in
                     ClipThumbnail(
                         clip: clips[index],
                         isSelected: selectedClipIndex == index
                     )
-                    .frame(width: 120, height: 80)
-                    .onTapGesture {
+                                .frame(width: 120, height: 80)
+                                .onTapGesture {
                         onClipSelected(index)
                     }
                 }
@@ -205,78 +237,139 @@ private struct AddClipButton: View {
     
     var body: some View {
         Button(action: onTap) {
-            VStack {
+                            VStack {
                 Image(systemName: systemImage)
-                    .font(.title)
+                                    .font(.title)
                 Text(title)
-                    .font(.caption)
-            }
-            .frame(width: 120, height: 80)
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(8)
-        }
-    }
+                                    .font(.caption)
+                            }
+                            .frame(width: 120, height: 80)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
 }
 
 private struct ClipControlsSection: View {
     let selectedIndex: Int
     let clips: [VideoService.VideoClip]
-    let originalDuration: Double
-    @Binding var trimStart: Double
-    @Binding var trimEnd: Double
-    let onTrimStartChange: (Double) -> Void
-    let onTrimEndChange: (Double) -> Void
+    let originalDuration: TimeInterval
+    @Binding var trimStart: TimeInterval
+    @Binding var trimEnd: TimeInterval
+    let onTrimStartChange: (TimeInterval) -> Void
+    let onTrimEndChange: (TimeInterval) -> Void
     let onMoveClip: (Int) -> Void
     let onRemoveClip: () -> Void
     
     var body: some View {
         VStack(spacing: 12) {
-            ClipTrimControls(
-                totalDuration: originalDuration,
-                clipStart: $trimStart,
-                clipEnd: $trimEnd
-            )
-            .onChange(of: trimStart, perform: onTrimStartChange)
-            .onChange(of: trimEnd, perform: onTrimEndChange)
-
+            Text("Trim Clip")
+                .font(.headline)
+            
+            // Single slider with two handles
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background track
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 4)
+                    
+                    // Selected range
+                    Rectangle()
+                        .fill(Color.blue)
+                        .frame(
+                            width: CGFloat((trimEnd - trimStart) / originalDuration) * geometry.size.width,
+                            height: 4
+                        )
+                        .offset(x: CGFloat(trimStart / originalDuration) * geometry.size.width)
+                    
+                    // Start handle
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 20, height: 20)
+                        .shadow(radius: 2)
+                        .offset(x: CGFloat(trimStart / originalDuration) * geometry.size.width - 10)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    let newPosition = value.location.x / geometry.size.width
+                                    let newTrimStart = max(0, min(trimEnd - 1, newPosition * originalDuration))
+                                    onTrimStartChange(newTrimStart)
+                                }
+                        )
+                    
+                    // End handle
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 20, height: 20)
+                        .shadow(radius: 2)
+                        .offset(x: CGFloat(trimEnd / originalDuration) * geometry.size.width - 10)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    let newPosition = value.location.x / geometry.size.width
+                                    let newTrimEnd = min(originalDuration, max(trimStart + 1, newPosition * originalDuration))
+                                    onTrimEndChange(newTrimEnd)
+                                }
+                        )
+                }
+            }
+            .frame(height: 20)
+            .padding(.horizontal, 10)
+            
+            // Time indicators
+            HStack {
+                Text(formatTime(trimStart))
+                Spacer()
+                Text(formatTime(trimEnd))
+            }
+            .font(.caption)
+            .foregroundColor(.gray)
+            
             ClipActionButtons(
                 selectedIndex: selectedIndex,
                 clipsCount: clips.count,
-                onMoveLeft: { onMoveClip(-1) },
-                onMoveRight: { onMoveClip(1) },
-                onRemove: onRemoveClip
+                onMoveClip: onMoveClip,
+                onRemoveClip: onRemoveClip
             )
-            .padding(.horizontal)
         }
+        .padding()
+        .background(Color(.systemBackground))
+                .cornerRadius(12)
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
 private struct ClipActionButtons: View {
     let selectedIndex: Int
     let clipsCount: Int
-    let onMoveLeft: () -> Void
-    let onMoveRight: () -> Void
-    let onRemove: () -> Void
+    let onMoveClip: (Int) -> Void
+    let onRemoveClip: () -> Void
     
     var body: some View {
-        HStack {
-            Button(action: onMoveLeft) {
-                Image(systemName: "arrow.left")
-            }
-            .disabled(selectedIndex == 0)
-            
-            Spacer()
-            
-            Button(action: onRemove) {
-                Image(systemName: "trash")
-                    .foregroundColor(.red)
-            }
-            
-            Spacer()
-            
-            Button(action: onMoveRight) {
-                Image(systemName: "arrow.right")
-            }
+                        HStack {
+            Button(action: { onMoveClip(-1) }) {
+                                Image(systemName: "arrow.left")
+                            }
+                            .disabled(selectedIndex == 0)
+                            
+                            Spacer()
+                            
+            Button(action: onRemoveClip) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            
+                            Spacer()
+                            
+            Button(action: { onMoveClip(1) }) {
+                                Image(systemName: "arrow.right")
+                            }
             .disabled(selectedIndex == clipsCount - 1)
         }
     }
@@ -295,57 +388,71 @@ public struct VideoStoryboardEditor: View {
     
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                VideoPreviewSection(
-                    player: viewModel.player,
-                    isProcessing: viewModel.isProcessing
-                )
-                
-                TimelineSection(
-                    clips: viewModel.clips,
-                    selectedClipIndex: viewModel.selectedClipIndex,
-                    onClipSelected: viewModel.selectClip,
-                    onAddExisting: { showExistingVideos = true },
-                    onUploadNew: { showPhotoPicker = true }
-                )
-                
-                if let selectedIndex = viewModel.selectedClipIndex {
-                    ClipControlsSection(
-                        selectedIndex: selectedIndex,
-                        clips: viewModel.clips,
-                        originalDuration: viewModel.originalDuration,
-                        trimStart: viewModel.trimStartBinding,
-                        trimEnd: viewModel.trimEndBinding,
-                        onTrimStartChange: viewModel.updateTrimStart,
-                        onTrimEndChange: viewModel.updateTrimEnd,
-                        onMoveClip: { offset in
-                            viewModel.moveClip(from: selectedIndex, offset: offset)
-                        },
-                        onRemoveClip: {
-                            viewModel.removeClip(at: selectedIndex)
+            VStack {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        VideoPreviewSection(
+                            currentPlayer: viewModel.player,
+                            stitchedPlayer: viewModel.stitchedPlayer,
+                            isProcessing: viewModel.isProcessing
+                        )
+                        TimelineSection(
+                            clips: viewModel.clips,
+                            selectedClipIndex: viewModel.selectedClipIndex,
+                            onClipSelected: viewModel.selectClip,
+                            onAddExisting: { showExistingVideos = true },
+                            onUploadNew: { showPhotoPicker = true }
+                        )
+                        if let selectedIndex = viewModel.selectedClipIndex {
+                            ClipControlsSection(
+                                selectedIndex: selectedIndex,
+                                clips: viewModel.clips,
+                                originalDuration: viewModel.originalDuration,
+                                trimStart: viewModel.trimStartBinding,
+                                trimEnd: viewModel.trimEndBinding,
+                                onTrimStartChange: viewModel.updateTrimStart,
+                                onTrimEndChange: viewModel.updateTrimEnd,
+                                onMoveClip: { offset in
+                                    viewModel.moveClip(from: selectedIndex, offset: offset)
+                                },
+                                onRemoveClip: {
+                                    viewModel.removeClip(at: selectedIndex)
+                                }
+                            )
                         }
-                    )
+                    }
+                    .padding(.horizontal)
                 }
-            }
+                Button {
+                    Task {
+                        try? await viewModel.prepareForSave()
+                    }
+                } label: {
+                    if viewModel.isProcessing {
+                        HStack {
+                            ProgressView()
+                                .tint(.white)
+                            Text("Processing...")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green.opacity(0.5))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    } else {
+                        Text("Save")
+                            .frame(maxWidth: .infinity)
             .padding()
+                            .background(Color.green)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
+                }
+                .disabled(viewModel.clips.isEmpty || viewModel.isProcessing)
+                .padding(.horizontal)
+            }
             .navigationTitle("Create Clip")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            await viewModel.saveClip()
-                        }
-                    }
-                    .disabled(viewModel.clips.isEmpty || viewModel.isProcessing)
-                }
-            }
             .sheet(isPresented: $showExistingVideos) {
                 ExistingVideosView { video in
                     if let videoUrl = URL(string: video.videoUrl) {
@@ -365,17 +472,41 @@ public struct VideoStoryboardEditor: View {
                     Task {
                         do {
                             guard let videoData = try await item.loadTransferable(type: Data.self) else { return }
-                            let tempURL = FileManager.default.temporaryDirectory
-                                .appendingPathComponent(UUID().uuidString)
-                                .appendingPathExtension("mov")
+                            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
                             try videoData.write(to: tempURL)
                             await viewModel.addClip(from: tempURL)
-                        } catch {
+                    } catch {
                             viewModel.errorMessage = error.localizedDescription
                             viewModel.showError = true
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $viewModel.showUploadSheet) {
+                if let url = viewModel.stitchedURL {
+                    VideoUploadView(
+                        videoService: viewModel.videoService,
+                        userId: "dummyUser",
+                        initialVideoURL: url
+                    ) {
+                        viewModel.finalizeUpload()
+                    }
+                }
+            }
+            .alert("Error", isPresented: $viewModel.showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.errorMessage)
+            }
+        }
+        .task {
+            // Load initial clip if provided
+            do {
+                try await viewModel.loadInitialClip()
+        } catch {
+                // Handle error appropriately
+                viewModel.errorMessage = error.localizedDescription
+                viewModel.showError = true
             }
         }
     }
@@ -415,6 +546,12 @@ class VideoStoryboardEditorViewModel: ObservableObject {
     @Published var originalDuration: Double = 0
     @Published private(set) var trimStart: Double = 0
     @Published private(set) var trimEnd: Double = 0
+    @Published var finalTitle: String = ""
+    @Published var finalDescription: String = ""
+    @Published var isFinalVideo: Bool = false
+    @Published var stitchedPlayer: AVPlayer?
+    @Published var showUploadSheet = false
+    @Published var stitchedURL: URL?
     
     let initialVideo: Video?
     let onSave: () -> Void
@@ -441,19 +578,15 @@ class VideoStoryboardEditorViewModel: ObservableObject {
         )
     }
     
-    func loadInitialClip() async {
+    func loadInitialClip() async throws {
         if let initialVideo = initialVideo, let url = URL(string: initialVideo.videoUrl) {
-            do {
-                let rawDuration = try await videoService.getVideoDuration(url: url)
-                let duration = max(rawDuration, 0.1)
-                let clip = try await videoService.createClip(from: url, startTime: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
-                self.clips.append(clip)
-                self.originalDuration = duration
-                self.selectClip(0)
-            } catch {
-                self.errorMessage = error.localizedDescription
-                self.showError = true
-            }
+            let rawDuration = try await videoService.getVideoDuration(url: url)
+            let duration = max(rawDuration, 0.1)
+            let clip = try await videoService.createClip(from: url, startTime: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
+            self.clips.append(clip)
+            self.originalDuration = duration
+            self.selectClip(0)
+            try await updateStitchedPreview()
         }
     }
     
@@ -494,6 +627,7 @@ class VideoStoryboardEditorViewModel: ObservableObject {
             let clip = try await videoService.createClip(from: url, startTime: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
             self.clips.append(clip)
             self.selectClip(clips.count - 1)
+            try await updateStitchedPreview()
         } catch {
             self.errorMessage = error.localizedDescription
             self.showError = true
@@ -504,8 +638,46 @@ class VideoStoryboardEditorViewModel: ObservableObject {
         guard !clips.isEmpty else { return }
         isProcessing = true
         do {
-            _ = try await videoService.stitchClips(clips)
+            // Stitch the clips and get the final video URL
+            let stitchedURL = try await videoService.stitchClips(clips)
+            
+            // Use user-provided metadata for the video
+            let titleToUpload = finalTitle.isEmpty ? "Stitched Video \(Int(Date().timeIntervalSince1970))" : finalTitle
+            let descriptionToUpload = finalDescription.isEmpty ? "Video created from storyboard editor." : finalDescription
+            
+            // Upload the stitched video to the database
+            let uploadedVideo = try await videoService.uploadVideo(
+                url: stitchedURL,
+                title: titleToUpload,
+                description: descriptionToUpload,
+                videoType: .property,
+                propertyId: nil,
+                userId: "dummyUser"
+            )
+            
+            // Configure the AVPlayer to preview the saved video using its download URL
+            guard let savedURL = URL(string: uploadedVideo.videoUrl) else {
+                throw NSError(domain: "VideoStoryboardEditorViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid video URL from upload"])
+            }
+            let playerItem = AVPlayerItem(url: savedURL)
+            player = AVPlayer(playerItem: playerItem)
+            player?.actionAtItemEnd = .none
+            
+            // Add observer to loop the video indefinitely
+            NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: playerItem, queue: .main) { _ in
+                Task { @MainActor in
+                    self.player?.seek(to: .zero)
+                    self.player?.play()
+                }
+            }
+            
+            // Start playback immediately
+            player?.play()
+            
+            // Call onSave callback
             onSave()
+            self.selectedClipIndex = nil
+            self.isFinalVideo = true
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -514,6 +686,7 @@ class VideoStoryboardEditorViewModel: ObservableObject {
     }
     
     func selectClip(_ index: Int) {
+        if isFinalVideo { return }
         selectedClipIndex = index
         if index < clips.count {
             let clip = clips[index]
@@ -527,26 +700,186 @@ class VideoStoryboardEditorViewModel: ObservableObject {
     
     func updateTrimStart(_ newValue: Double) {
         guard let idx = selectedClipIndex else { return }
-        trimStart = newValue
-        let clip = clips[idx]
-        clips[idx] = VideoService.VideoClip(
-            sourceURL: clip.sourceURL,
-            startTime: CMTime(seconds: newValue, preferredTimescale: 600),
-            duration: CMTime(seconds: trimEnd - newValue, preferredTimescale: 600),
-            filter: clip.filter
-        )
+        Task {
+            do {
+                await MainActor.run {
+                    self.isProcessing = true
+                    player?.pause()
+                    trimStart = newValue
+                }
+                let clip = clips[idx]
+                let newClip = VideoService.VideoClip(
+                    sourceURL: clip.sourceURL,
+                    startTime: CMTime(seconds: newValue, preferredTimescale: 600),
+                    duration: CMTime(seconds: trimEnd - newValue, preferredTimescale: 600),
+                    filter: clip.filter
+                )
+                await MainActor.run {
+                    clips[idx] = newClip
+                    previewClip(at: idx)
+                }
+                try await updateStitchedPreview()
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to update trim: \(error.localizedDescription)"
+                    self.showError = true
+                    self.isProcessing = false
+                }
+            }
+        }
     }
     
     func updateTrimEnd(_ newValue: Double) {
         guard let idx = selectedClipIndex else { return }
-        trimEnd = newValue
-        let clip = clips[idx]
-        clips[idx] = VideoService.VideoClip(
-            sourceURL: clip.sourceURL,
-            startTime: clip.startTime,
-            duration: CMTime(seconds: newValue - trimStart, preferredTimescale: 600),
-            filter: clip.filter
-        )
+        Task {
+            do {
+                await MainActor.run {
+                    self.isProcessing = true
+                    player?.pause()
+                    trimEnd = newValue
+                }
+                let clip = clips[idx]
+                let newClip = VideoService.VideoClip(
+                    sourceURL: clip.sourceURL,
+                    startTime: clip.startTime,
+                    duration: CMTime(seconds: newValue - trimStart, preferredTimescale: 600),
+                    filter: clip.filter
+                )
+                await MainActor.run {
+                    clips[idx] = newClip
+                    previewClip(at: idx)
+                }
+                try await updateStitchedPreview()
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to update trim: \(error.localizedDescription)"
+                    self.showError = true
+                    self.isProcessing = false
+                }
+            }
+        }
+    }
+    
+    private func updateStitchedPreview() async throws {
+        guard !clips.isEmpty else {
+            await MainActor.run {
+                stitchedPlayer?.pause()
+                NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+                stitchedPlayer = nil
+            }
+            return
+        }
+        
+        // If only one clip exists, use its URL directly instead of stitching
+        if clips.count == 1 {
+            let singleURL = clips[0].sourceURL
+            await MainActor.run {
+                let playerItem = AVPlayerItem(url: singleURL)
+                let queuePlayer = AVQueuePlayer(playerItem: playerItem)
+                _ = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
+                self.stitchedPlayer = queuePlayer
+                queuePlayer.play()
+                isProcessing = false
+            }
+            return
+        }
+        
+        // First pause the stitched player, ignoring errors if it's not playing
+        if let player = await MainActor.run(body: { stitchedPlayer }) {
+            do {
+                try await player.pause()
+            } catch {
+                // Log or ignore specific pause errors like 'Operation stopped'
+                print("Ignore pause error: \(error.localizedDescription)")
+            }
+        }
+        
+        // Then update UI state
+        await MainActor.run {
+            isProcessing = true
+            NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+            stitchedPlayer = nil
+        }
+        
+        do {
+            let url = try await videoService.stitchClips(clips)
+            
+            // Create asset and verify it has video tracks
+            let asset = AVAsset(url: url)
+            let tracks = try await asset.loadTracks(withMediaType: .video)
+            guard !tracks.isEmpty else {
+                throw NSError(domain: "VideoStoryboardEditor", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Generated video has no video tracks"])
+            }
+            
+            // Create a queue player for better looping support
+            await MainActor.run {
+                let playerItem = AVPlayerItem(url: url)
+                let queuePlayer = AVQueuePlayer(playerItem: playerItem)
+                
+                // Set up looping using AVPlayerLooper
+                _ = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
+                
+                self.stitchedPlayer = queuePlayer
+                queuePlayer.play()
+                isProcessing = false
+            }
+        } catch {
+            try await MainActor.run {
+                isProcessing = false
+                throw error  // Re-throw to be caught by caller
+            }
+        }
+    }
+    
+    func prepareForSave() async {
+        guard !clips.isEmpty else { return }
+        
+        isProcessing = true
+        do {
+            // First stop any existing preview playback and clean up
+            try await MainActor.run {
+                stitchedPlayer?.pause()
+                NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+                stitchedPlayer = nil
+            }
+            
+            // Generate the final video
+            let url = try await videoService.stitchClips(clips)
+            
+            // Verify the video is valid and has the expected content
+            let asset = AVAsset(url: url)
+            let tracks = try await asset.loadTracks(withMediaType: .video)
+            guard !tracks.isEmpty else {
+                throw NSError(domain: "VideoStoryboardEditor", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Generated video has no video tracks"])
+            }
+            
+            // Verify the duration is as expected
+            let duration = try await asset.load(.duration)
+            guard duration.seconds > 0 else {
+                throw NSError(domain: "VideoStoryboardEditor", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Generated video has zero duration"])
+            }
+            
+            try await MainActor.run {
+                self.stitchedURL = url
+                self.showUploadSheet = true
+                self.isProcessing = false
+            }
+        } catch {
+            try await MainActor.run {
+                self.errorMessage = "Failed to prepare video: \(error.localizedDescription)"
+                self.showError = true
+                self.isProcessing = false
+            }
+        }
+    }
+    
+    func finalizeUpload() {
+        onSave()
+        showUploadSheet = false
+        stitchedURL = nil
     }
 }
 

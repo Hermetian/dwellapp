@@ -22,10 +22,14 @@ public struct VideoUploadView: View {
     
     private let videoService: VideoService
     private let userId: String
+    private let initialVideoURL: URL?
+    private let onFinish: (() -> Void)?
     
-    public init(videoService: VideoService, userId: String) {
+    public init(videoService: VideoService, userId: String, initialVideoURL: URL? = nil, onFinish: (() -> Void)? = nil) {
         self.videoService = videoService
         self.userId = userId
+        self.initialVideoURL = initialVideoURL
+        self.onFinish = onFinish
     }
     
     public var body: some View {
@@ -106,6 +110,11 @@ public struct VideoUploadView: View {
                     }
                 }
             }
+            .onAppear {
+                if let url = initialVideoURL {
+                    viewModel.videoURL = url
+                }
+            }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -138,6 +147,9 @@ public struct VideoUploadView: View {
                     userId: userId
                 )
                 await MainActor.run {
+                    if let finish = onFinish {
+                        finish()
+                    }
                     dismiss()
                 }
             } catch {

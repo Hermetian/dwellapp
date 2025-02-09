@@ -190,7 +190,7 @@ public class VideoService: ObservableObject {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             export.exportAsynchronously {
                 Task { @MainActor in
-                    continuation.resume()
+                continuation.resume()
                 }
             }
         }
@@ -282,7 +282,7 @@ public class VideoService: ObservableObject {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             export.exportAsynchronously {
                 Task { @MainActor in
-                    continuation.resume()
+                continuation.resume()
                 }
             }
         }
@@ -543,6 +543,7 @@ public class VideoService: ObservableObject {
         let composition = AVMutableComposition()
         var currentTime = CMTime.zero
         
+        // Create tracks with specific parameters
         guard let compositionVideoTrack = composition.addMutableTrack(
             withMediaType: .video,
             preferredTrackID: kCMPersistentTrackID_Invalid
@@ -554,13 +555,49 @@ public class VideoService: ObservableObject {
             throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition tracks"])
         }
         
-        for clip in clips {
+        // First pass: validate all clips and collect video properties
+        var naturalSize: CGSize = .zero
+        for (index, clip) in clips.enumerated() {
             let asset = AVAsset(url: clip.sourceURL)
             
+            guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
+                throw NSError(domain: "VideoService", code: -1, 
+                            userInfo: [NSLocalizedDescriptionKey: "No video track found in clip \(index)"])
+            }
+            
+            let trackSize = try await videoTrack.load(.naturalSize)
+            if naturalSize == .zero {
+                naturalSize = trackSize
+            }
+            
+            // Validate time range
+            let assetDuration = try await asset.load(.duration)
+            if clip.startTime + clip.duration > assetDuration {
+                throw NSError(domain: "VideoService", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Invalid time range for clip \(index)"])
+            }
+        }
+        
+        // Second pass: add tracks to composition
+        for clip in clips {
+            let asset = AVAsset(url: clip.sourceURL)
             guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else { continue }
             
             let timeRange = CMTimeRange(start: clip.startTime, duration: clip.duration)
+            
+            // Scale and position video to match first clip's dimensions
+            let trackSize = try await videoTrack.load(.naturalSize)
+            let transform = try await videoTrack.load(.preferredTransform)
+            
+            let scaleX = naturalSize.width / trackSize.width
+            let scaleY = naturalSize.height / trackSize.height
+            let scale = min(scaleX, scaleY)
+            
+            let scaledTransform = CGAffineTransform(scaleX: scale, y: scale)
+                .concatenating(transform)
+            
             try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: currentTime)
+            compositionVideoTrack.preferredTransform = scaledTransform
             
             if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first {
                 try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: currentTime)
@@ -633,7 +670,7 @@ public class VideoService: ObservableObject {
             request.finish(with: outputImage, context: context)
         }
         
-        videoComposition.renderSize = try await compositionVideoTrack.load(.naturalSize)
+        videoComposition.renderSize = naturalSize
         videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
         
         let exportSession = try self.createExportSession(for: composition, videoComposition: videoComposition)
