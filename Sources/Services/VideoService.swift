@@ -1,6 +1,7 @@
 import AVFoundation
 import FirebaseFirestore
 import FirebaseStorage
+import CoreImage
 #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import UIKit
 #elseif os(macOS)
@@ -11,6 +12,7 @@ import AppKit
 public class VideoService: ObservableObject {
     private let db = Firestore.firestore()
     private let storage = Storage.storage()
+    private let ciContext = CIContext()
     
     public init() {}
     
@@ -278,5 +280,124 @@ public class VideoService: ObservableObject {
         try? FileManager.default.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "mp4" || $0.pathExtension == "jpg" }
             .forEach { try? FileManager.default.removeItem(at: $0) }
+    }
+    
+    public func applyFilter(to videoURL: URL, filter: VideoFilter) async throws -> URL {
+        let asset = AVAsset(url: videoURL)
+        let composition = AVMutableComposition()
+        let videoTrack = try await asset.loadTracks(withMediaType: .video).first
+        let audioTrack = try await asset.loadTracks(withMediaType: .audio).first
+        
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition video track"])
+        }
+        
+        let timeRange = CMTimeRange(start: .zero, duration: try await asset.load(.duration))
+        try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack!, at: .zero)
+        
+        if let audioTrack = audioTrack,
+           let compositionAudioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+           ) {
+            try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: .zero)
+        }
+        
+        // Create video composition
+        let videoComposition = AVMutableVideoComposition(asset: composition) { request in
+            // The sourceImage is already a CIImage
+            var outputImage = request.sourceImage
+            
+            switch filter {
+            case .brightness(let value):
+                if let filter = CIFilter(name: "CIColorControls") {
+                    filter.setValue(outputImage, forKey: kCIInputImageKey)
+                    filter.setValue(CGFloat(value), forKey: kCIInputBrightnessKey)
+                    if let output = filter.outputImage {
+                        outputImage = output
+                    }
+                }
+                
+            case .contrast(let value):
+                if let filter = CIFilter(name: "CIColorControls") {
+                    filter.setValue(outputImage, forKey: kCIInputImageKey)
+                    filter.setValue(CGFloat(value), forKey: kCIInputContrastKey)
+                    if let output = filter.outputImage {
+                        outputImage = output
+                    }
+                }
+                
+            case .saturation(let value):
+                if let filter = CIFilter(name: "CIColorControls") {
+                    filter.setValue(outputImage, forKey: kCIInputImageKey)
+                    filter.setValue(CGFloat(value), forKey: kCIInputSaturationKey)
+                    if let output = filter.outputImage {
+                        outputImage = output
+                    }
+                }
+                
+            case .vibrance(let value):
+                if let filter = CIFilter(name: "CIVibrance") {
+                    filter.setValue(outputImage, forKey: kCIInputImageKey)
+                    filter.setValue(CGFloat(value), forKey: kCIInputAmountKey)
+                    if let output = filter.outputImage {
+                        outputImage = output
+                    }
+                }
+                
+            case .temperature(let value):
+                if let filter = CIFilter(name: "CITemperatureAndTint") {
+                    filter.setValue(outputImage, forKey: kCIInputImageKey)
+                    filter.setValue(CIVector(x: CGFloat(6500), y: 0), forKey: "inputNeutral")
+                    filter.setValue(CIVector(x: CGFloat(value), y: 0), forKey: "inputTargetNeutral")
+                    if let output = filter.outputImage {
+                        outputImage = output
+                    }
+                }
+            }
+            
+            // Use the filtered CIImage directly
+            request.finish(with: outputImage, context: nil)
+        }
+        
+        videoComposition.renderSize = try await compositionVideoTrack.load(.naturalSize)
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        
+        // Export
+        return try await withCheckedThrowingContinuation { continuation in
+            Task { @MainActor in
+                guard let exportSession = AVAssetExportSession(
+                    asset: composition,
+                    presetName: AVAssetExportPresetHighestQuality
+                ) else {
+                    continuation.resume(throwing: NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"]))
+                    return
+                }
+                
+                let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mp4")
+                exportSession.outputURL = outputURL
+                exportSession.outputFileType = .mp4
+                exportSession.videoComposition = videoComposition
+                
+                exportSession.exportAsynchronously {
+                    if exportSession.status == .completed {
+                        continuation.resume(returning: outputURL)
+                    } else {
+                        continuation.resume(throwing: exportSession.error ?? NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Export failed"]))
+                    }
+                }
+            }
+        }
+    }
+    
+    public enum VideoFilter: Sendable {
+        case brightness(Float)
+        case contrast(Float)
+        case saturation(Float)
+        case vibrance(Float)
+        case temperature(Float)
     }
 } 

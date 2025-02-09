@@ -18,6 +18,7 @@ public struct VideoUploadView: View {
     @State private var isUploading = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showVideoEditor = false
     
     private let videoService: VideoService
     private let userId: String
@@ -34,6 +35,13 @@ public struct VideoUploadView: View {
                     if let videoURL = viewModel.videoURL {
                         VideoPlayer(player: AVPlayer(url: videoURL))
                             .frame(height: 200)
+                        
+                        Button {
+                            showVideoEditor = true
+                        } label: {
+                            Label("Edit Video", systemImage: "wand.and.stars")
+                                .foregroundColor(.blue)
+                        }
                     } else {
                         PhotosPicker(selection: $selectedItem,
                                    matching: .videos) {
@@ -103,6 +111,13 @@ public struct VideoUploadView: View {
             } message: {
                 Text(errorMessage)
             }
+            .sheet(isPresented: $showVideoEditor) {
+                if let videoURL = viewModel.videoURL {
+                    VideoEditorView(videoURL: videoURL) { editedURL in
+                        viewModel.videoURL = editedURL
+                    }
+                }
+            }
             // Add your property selection sheet here
             // .sheet(isPresented: $showPropertySelection) { ... }
         }
@@ -114,48 +129,22 @@ public struct VideoUploadView: View {
         isUploading = true
         Task {
             do {
-                let finalPropertyId = videoType == .property ? propertyId : nil
-                
-                // Show loading state
-                withAnimation {
-                    isUploading = true
-                }
-                
                 _ = try await videoService.uploadVideo(
                     url: videoURL,
                     title: title,
                     description: description,
                     videoType: videoType,
-                    propertyId: finalPropertyId,
+                    propertyId: videoType == .property ? propertyId : nil,
                     userId: userId
                 )
-                
-                // Clean up the temporary file
-                try? FileManager.default.removeItem(at: videoURL)
-                
-                dismiss()
-            } catch {
-                // Handle specific error cases
-                if let storageError = error as? StorageError {
-                    switch storageError {
-                    case .quotaExceeded:
-                        errorMessage = "Storage quota exceeded. Please try a smaller video."
-                    case .unauthorized:
-                        errorMessage = "Please sign in again to upload videos."
-                    case .retryLimitExceeded:
-                        errorMessage = "Upload failed due to poor network connection. Please try again."
-                    default:
-                        errorMessage = "Failed to upload video: \(storageError.localizedDescription)"
-                    }
-                } else {
-                    errorMessage = error.localizedDescription
+                await MainActor.run {
+                    dismiss()
                 }
+            } catch {
+                errorMessage = error.localizedDescription
                 showError = true
             }
-            
-            withAnimation {
-                isUploading = false
-            }
+            isUploading = false
         }
     }
 }

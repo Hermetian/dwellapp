@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		03CE38C3AEA9EFFFB118781E /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 48357A5EC4B6696D0410F6F3 /* FirebaseAuth */; };
+		042E30880010F9A50EB19C4E /* VideoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D76E58B9AC505F53ACCCBB /* VideoEditorView.swift */; };
 		0E559C8D4E2BA9E4CBFA5430 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36BF000CDBB20B545182DCA7 /* LoginView.swift */; };
 		1348D4475670629EB6391EC5 /* PropertyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C27688C4F6B914CBDBECE5 /* PropertyViewModel.swift */; };
 		1B06B9CE3F475EDC1CD5B58A /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E02EB21D3919DF7E7480BD /* AuthService.swift */; };
@@ -72,6 +73,7 @@
 		9F400AD17B07EC655220B59C /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 0E08CDF4DE0C55E689713AA7 /* FirebaseFirestore */; };
 		A11B47866E7CF55300CC5D45 /* Core_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4BBB444A6F9018C414429894 /* Core_macOS.framework */; };
 		A47B51C01A5DB725592F143E /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9AB2F553615A59DB3C512F11 /* Preview Assets.xcassets */; };
+		A5E5893457599DFB489E0ADB /* Views_iOS.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C27BFDFF4A1C5F1F5EE617CE /* Views_iOS.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A754FB6878AC10014B9B9F33 /* RangeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BB2E82E6877A905E0EE7B9 /* RangeSlider.swift */; };
 		AAE546D6640FAD2943FCD23F /* VideoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49F91284FB6227673946683 /* VideoViewModel.swift */; };
 		AF356261EDCCA88726408EDD /* FilterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FEEF8C93295112D269D99C7 /* FilterViewModel.swift */; };
@@ -84,9 +86,11 @@
 		BB7FB54A9683B1966AE97302 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF87AC73E6A8A9C2120976F9 /* MainTabView.swift */; };
 		BCB2C9D0C96A3D1B7052AA1E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20F3E659C943ABD14E9338CA /* Assets.xcassets */; };
 		BE0814411B153B16F13F40B1 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C45B8A03E7C242106921A45 /* FeedView.swift */; };
+		C2A58AA359D8E92A0CF592E3 /* ViewModels_iOS.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F45CD25EF0080CCFC4B33183 /* ViewModels_iOS.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C5CC14E9A4A484736AB28AA2 /* FirebaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66997A68E4F4B264E79D138 /* FirebaseConfig.swift */; };
 		C5D2CD25D9168B1521CED9C1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20F3E659C943ABD14E9338CA /* Assets.xcassets */; };
 		D0DC0439D13FD34981EA9254 /* FirebaseExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9300632C38B9C883B7452964 /* FirebaseExtensions.swift */; };
+		D3286BA6535DEE0F5289BB07 /* VideoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D76E58B9AC505F53ACCCBB /* VideoEditorView.swift */; };
 		D6672C04C02A4D713EF0865D /* ViewModels_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E9AE3183F15AF88203927222 /* ViewModels_macOS.framework */; };
 		D6A95B498DDE093F4F4C2E64 /* VideoUploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D32BF2F412931A0BDAD52631 /* VideoUploadView.swift */; };
 		D7A7330F6B899778E0C2B040 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = CAF50E325F76BEEECBEF5D40 /* FirebaseStorage */; };
@@ -219,6 +223,8 @@
 			dstSubfolderSpec = 10;
 			files = (
 				FFD179F47D399FB5329B6A8F /* Core_iOS.framework in Embed Frameworks */,
+				C2A58AA359D8E92A0CF592E3 /* ViewModels_iOS.framework in Embed Frameworks */,
+				A5E5893457599DFB489E0ADB /* Views_iOS.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -268,6 +274,7 @@
 		D32BF2F412931A0BDAD52631 /* VideoUploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoUploadView.swift; sourceTree = "<group>"; };
 		D49F91284FB6227673946683 /* VideoViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoViewModel.swift; sourceTree = "<group>"; };
 		D7C27688C4F6B914CBDBECE5 /* PropertyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyViewModel.swift; sourceTree = "<group>"; };
+		D8D76E58B9AC505F53ACCCBB /* VideoEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditorView.swift; sourceTree = "<group>"; };
 		DE4A237FF6DDD90BAF3FCACD /* PropertyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyCard.swift; sourceTree = "<group>"; };
 		E02EA244EEF674B695C4E4BC /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		E34D4A089CCD4D0485146AE0 /* DwellApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DwellApp.swift; sourceTree = "<group>"; };
@@ -363,6 +370,7 @@
 			children = (
 				4097A710AE14663E5C21BAAB /* RadialMenu.swift */,
 				22BB2E82E6877A905E0EE7B9 /* RangeSlider.swift */,
+				D8D76E58B9AC505F53ACCCBB /* VideoEditorView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -740,6 +748,7 @@
 				58D51FC77B5535AC8722FEC8 /* RootView.swift in Sources */,
 				3F63C77CC4F312F004A897BF /* SignUpView.swift in Sources */,
 				E48408F0EF2DACF051C37B5D /* UploadPropertyView.swift in Sources */,
+				042E30880010F9A50EB19C4E /* VideoEditorView.swift in Sources */,
 				B69495BEB0921DC6DF8DD7DE /* VideoUploadView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -798,6 +807,7 @@
 				B7DE6514149010F03DC454D7 /* RootView.swift in Sources */,
 				2DFB1FC94B51C1C168408BF5 /* SignUpView.swift in Sources */,
 				DDCC9FEE49B1264EE425F800 /* UploadPropertyView.swift in Sources */,
+				D3286BA6535DEE0F5289BB07 /* VideoEditorView.swift in Sources */,
 				D6A95B498DDE093F4F4C2E64 /* VideoUploadView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
