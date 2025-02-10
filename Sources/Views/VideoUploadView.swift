@@ -4,6 +4,7 @@ import AVKit
 import Core
 import FirebaseFirestore
 import FirebaseStorage
+import ViewModels
 
 @MainActor
 public struct VideoUploadView: View {
@@ -127,8 +128,9 @@ public struct VideoUploadView: View {
                     }
                 }
             }
-            // Add your property selection sheet here
-            // .sheet(isPresented: $showPropertySelection) { ... }
+            .sheet(isPresented: $showPropertySelection) {
+                PropertyPickerView(selectedPropertyId: $propertyId)
+            }
         }
     }
     
@@ -179,8 +181,8 @@ class VideoUploadViewModel: ObservableObject {
 
 private struct PropertyPickerView: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var selectedProperty: Core.Property?
-    @State private var properties: [Core.Property] = []
+    @EnvironmentObject private var appViewModel: AppViewModel
+    @Binding var selectedPropertyId: String
     @State private var isLoading = true
     
     var body: some View {
@@ -189,9 +191,9 @@ private struct PropertyPickerView: View {
                 if isLoading {
                     ProgressView()
                 } else {
-                    List(properties) { property in
+                    List(appViewModel.propertyViewModel.properties) { property in
                         Button {
-                            selectedProperty = property
+                            selectedPropertyId = property.id ?? ""
                             dismiss()
                         } label: {
                             VStack(alignment: .leading) {
@@ -215,20 +217,14 @@ private struct PropertyPickerView: View {
                 }
             }
             .task {
-                await loadProperties()
+                do {
+                    try await appViewModel.propertyViewModel.loadProperties()
+                    isLoading = false
+                } catch {
+                    print("Error loading properties: \(error)")
+                    isLoading = false
+                }
             }
-        }
-    }
-    
-    private func loadProperties() async {
-        do {
-            let db = Firestore.firestore()
-            let snapshot = try await db.collection("properties").getDocuments()
-            properties = try snapshot.documents.map { try $0.data(as: Core.Property.self) }
-            isLoading = false
-        } catch {
-            print("Error loading properties: \(error)")
-            isLoading = false
         }
     }
 } 
