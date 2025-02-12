@@ -622,15 +622,48 @@ class VideoStoryboardEditorViewModel: ObservableObject {
     
     func addClip(from url: URL) async {
         do {
+            print("🎬 Starting to add clip from URL: \(url)")
+            await MainActor.run {
+                self.isProcessing = true
+            }
+            
             let rawDuration = try await videoService.getVideoDuration(url: url)
+            print("📏 Got video duration: \(rawDuration)")
+            
             let duration = max(rawDuration, 0.1)
+            print("🎯 Creating clip with duration: \(duration)")
+            
             let clip = try await videoService.createClip(from: url, startTime: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
-            self.clips.append(clip)
-            self.selectClip(clips.count - 1)
-            try await updateStitchedPreview()
+            print("✅ Clip created successfully")
+            
+            await MainActor.run {
+                self.clips.append(clip)
+                print("📝 Added clip to collection. Total clips: \(self.clips.count)")
+                self.selectClip(clips.count - 1)
+            }
+            
+            // Update preview in a separate task to avoid blocking
+            await MainActor.run {
+                Task {
+                    do {
+                        print("🔄 Starting preview update")
+                        try await self.updateStitchedPreview()
+                        print("✨ Preview update completed")
+                    } catch {
+                        print("❌ Preview update failed: \(error.localizedDescription)")
+                        self.errorMessage = "Failed to update preview: \(error.localizedDescription)"
+                        self.showError = true
+                    }
+                    self.isProcessing = false
+                }
+            }
         } catch {
-            self.errorMessage = error.localizedDescription
-            self.showError = true
+            print("❌ Failed to add clip: \(error.localizedDescription)")
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+                self.showError = true
+                self.isProcessing = false
+            }
         }
     }
     
@@ -693,8 +726,25 @@ class VideoStoryboardEditorViewModel: ObservableObject {
             let duration = max(clip.duration.seconds, 0.1)
             trimStart = clip.startTime.seconds
             trimEnd = clip.startTime.seconds + duration
-            originalDuration = duration
-            previewClip(at: index)
+            
+            Task {
+                do {
+                    originalDuration = try await videoService.getVideoDuration(url: clip.sourceURL)
+                    
+                    await MainActor.run {
+                        // Show full source video in top player
+                        player = AVPlayer(url: clip.sourceURL)
+                        player?.play()
+                    }
+                    
+                    try await updateStitchedPreview()
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to load clip: \(error.localizedDescription)"
+                        self.showError = true
+                    }
+                }
+            }
         }
     }
     
@@ -702,11 +752,11 @@ class VideoStoryboardEditorViewModel: ObservableObject {
         guard let idx = selectedClipIndex else { return }
         Task {
             do {
-                await MainActor.run {
+                try await MainActor.run {
                     self.isProcessing = true
-                    player?.pause()
                     trimStart = newValue
                 }
+                
                 let clip = clips[idx]
                 let newClip = VideoService.VideoClip(
                     sourceURL: clip.sourceURL,
@@ -714,13 +764,16 @@ class VideoStoryboardEditorViewModel: ObservableObject {
                     duration: CMTime(seconds: trimEnd - newValue, preferredTimescale: 600),
                     filter: clip.filter
                 )
-                await MainActor.run {
+                
+                try await MainActor.run {
                     clips[idx] = newClip
-                    previewClip(at: idx)
+                    // Don't update the main player - keep showing full source
+                    player?.seek(to: CMTime(seconds: newValue, preferredTimescale: 600))
                 }
+                
                 try await updateStitchedPreview()
             } catch {
-                await MainActor.run {
+                try await MainActor.run {
                     self.errorMessage = "Failed to update trim: \(error.localizedDescription)"
                     self.showError = true
                     self.isProcessing = false
@@ -733,11 +786,11 @@ class VideoStoryboardEditorViewModel: ObservableObject {
         guard let idx = selectedClipIndex else { return }
         Task {
             do {
-                await MainActor.run {
+                try await MainActor.run {
                     self.isProcessing = true
-                    player?.pause()
                     trimEnd = newValue
                 }
+                
                 let clip = clips[idx]
                 let newClip = VideoService.VideoClip(
                     sourceURL: clip.sourceURL,
@@ -745,13 +798,15 @@ class VideoStoryboardEditorViewModel: ObservableObject {
                     duration: CMTime(seconds: newValue - trimStart, preferredTimescale: 600),
                     filter: clip.filter
                 )
-                await MainActor.run {
+                
+                try await MainActor.run {
                     clips[idx] = newClip
-                    previewClip(at: idx)
+                    // Don't update the main player - keep showing full source
                 }
+                
                 try await updateStitchedPreview()
             } catch {
-                await MainActor.run {
+                try await MainActor.run {
                     self.errorMessage = "Failed to update trim: \(error.localizedDescription)"
                     self.showError = true
                     self.isProcessing = false
@@ -760,51 +815,46 @@ class VideoStoryboardEditorViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Preview Management
+    private var isUpdatingPreview = false
+    
     private func updateStitchedPreview() async throws {
+        guard !isUpdatingPreview else {
+            print("⚠️ Preview update already in progress, skipping")
+            return
+        }
+        
+        print("🔄 Starting stitched preview update")
         guard !clips.isEmpty else {
+            print("ℹ️ No clips to preview")
             await MainActor.run {
                 stitchedPlayer?.pause()
                 NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
                 stitchedPlayer = nil
-            }
-            return
-        }
-        
-        // If only one clip exists, use its URL directly instead of stitching
-        if clips.count == 1 {
-            let singleURL = clips[0].sourceURL
-            await MainActor.run {
-                let playerItem = AVPlayerItem(url: singleURL)
-                let queuePlayer = AVQueuePlayer(playerItem: playerItem)
-                _ = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
-                self.stitchedPlayer = queuePlayer
-                queuePlayer.play()
                 isProcessing = false
             }
             return
         }
-        
-        // First pause the stitched player, ignoring errors if it's not playing
-        if let player = await MainActor.run(body: { stitchedPlayer }) {
-            do {
-                try await player.pause()
-            } catch {
-                // Log or ignore specific pause errors like 'Operation stopped'
-                print("Ignore pause error: \(error.localizedDescription)")
-            }
-        }
-        
-        // Then update UI state
+
         await MainActor.run {
+            isUpdatingPreview = true
             isProcessing = true
+            stitchedPlayer?.pause()
             NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
             stitchedPlayer = nil
         }
         
+        defer {
+            Task { @MainActor in
+                isUpdatingPreview = false
+            }
+        }
+        
         do {
+            print("🎬 Starting clip stitching")
             let url = try await videoService.stitchClips(clips)
+            print("✅ Clips stitched successfully")
             
-            // Create asset and verify it has video tracks
             let asset = AVAsset(url: url)
             let tracks = try await asset.loadTracks(withMediaType: .video)
             guard !tracks.isEmpty else {
@@ -812,22 +862,23 @@ class VideoStoryboardEditorViewModel: ObservableObject {
                             userInfo: [NSLocalizedDescriptionKey: "Generated video has no video tracks"])
             }
             
-            // Create a queue player for better looping support
+            print("🎯 Setting up preview player")
             await MainActor.run {
                 let playerItem = AVPlayerItem(url: url)
                 let queuePlayer = AVQueuePlayer(playerItem: playerItem)
-                
-                // Set up looping using AVPlayerLooper
                 _ = AVPlayerLooper(player: queuePlayer, templateItem: playerItem)
                 
                 self.stitchedPlayer = queuePlayer
                 queuePlayer.play()
                 isProcessing = false
+                print("✨ Preview player setup complete")
             }
         } catch {
-            try await MainActor.run {
+            print("❌ Preview update failed: \(error)")
+            await MainActor.run {
+                self.errorMessage = "Failed to update preview: \(error.localizedDescription)"
+                self.showError = true
                 isProcessing = false
-                throw error  // Re-throw to be caught by caller
             }
         }
     }
@@ -966,4 +1017,4 @@ public struct ExistingVideosView: View {
             }
         }
     }
-} 
+}

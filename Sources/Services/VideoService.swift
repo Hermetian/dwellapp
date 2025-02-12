@@ -180,39 +180,91 @@ public class VideoService: ObservableObject {
     }
     
     private func exportComposition(_ composition: AVComposition, timeRange: CMTimeRange, to outputURL: URL) async throws {
-        guard let export = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
+        guard let export = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetMediumQuality) else {
             throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
         }
         export.outputURL = outputURL
         export.outputFileType = .mp4
         export.timeRange = timeRange
         
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        return try await withUnsafeThrowingContinuation { continuation in
             export.exportAsynchronously {
-                Task { @MainActor in
-                continuation.resume()
+                switch export.status {
+                case .completed:
+                    continuation.resume()
+                case .failed:
+                    continuation.resume(throwing: export.error ?? NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to export video: \(String(describing: export.error))"]))
+                case .cancelled:
+                    continuation.resume(throwing: NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Export cancelled"]))
+                default:
+                    continuation.resume(throwing: NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Unexpected export status: \(export.status)"]))
                 }
             }
         }
-        
-        if export.status != .completed {
-            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to export video: \(String(describing: export.error))"])
-        }
     }
     
-    private func createExportSession(for composition: AVComposition, videoComposition: AVVideoComposition? = nil) throws -> AVAssetExportSession {
+    private func createExportSession(for composition: AVComposition, videoComposition: AVVideoComposition? = nil) async throws -> AVAssetExportSession {
+        print("🎬 Creating export session...")
+        
+        // Try to create export session with medium quality first (more compatible)
         guard let exportSession = AVAssetExportSession(
             asset: composition,
-            presetName: AVAssetExportPresetHighestQuality
+            presetName: AVAssetExportPresetMediumQuality
         ) else {
-            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
+            throw NSError(domain: "VideoService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to create export session"])
         }
         
         let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mp4")
+        print("📍 Output URL: \(outputURL.path)")
+        
         exportSession.outputURL = outputURL
         exportSession.outputFileType = .mp4
+        exportSession.shouldOptimizeForNetworkUse = true
+        
         if let videoComposition = videoComposition {
-            exportSession.videoComposition = videoComposition
+            // Create a new composition with fixed settings
+            let newComposition = AVMutableVideoComposition()
+            newComposition.renderSize = CGSize(width: 1280, height: 720)
+            newComposition.frameDuration = CMTime(value: 1, timescale: 30)
+            
+            // Create a single instruction for the entire duration
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: .zero, duration: composition.duration)
+            
+            // Create layer instruction for the video track
+            if let videoTrack = try? composition.tracks(withMediaType: .video).first {
+                let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+                
+                // Calculate scale to fit 1280x720
+                let trackSize = try await videoTrack.load(.naturalSize)
+                let scaleX = 1280.0 / trackSize.width
+                let scaleY = 720.0 / trackSize.height
+                let scale = min(scaleX, scaleY)
+                
+                // Center the video
+                let scaledWidth = trackSize.width * scale
+                let scaledHeight = trackSize.height * scale
+                let tx = (1280 - scaledWidth) / 2
+                let ty = (720 - scaledHeight) / 2
+                
+                // Apply transform
+                let transform = CGAffineTransform(scaleX: scale, y: scale)
+                    .concatenating(CGAffineTransform(translationX: tx, y: ty))
+                
+                layerInstruction.setTransform(transform, at: .zero)
+                instruction.layerInstructions = [layerInstruction]
+            }
+            
+            newComposition.instructions = [instruction]
+            print("🎬 Output size: 1280x720")
+            print("⏱️ Frame duration: \(newComposition.frameDuration.seconds) seconds (\(1.0/newComposition.frameDuration.seconds) fps)")
+            print("📝 Number of instructions: \(newComposition.instructions.count)")
+            
+            exportSession.videoComposition = newComposition
         }
         
         return exportSession
@@ -220,14 +272,46 @@ public class VideoService: ObservableObject {
     
     @MainActor
     private func export(using session: AVAssetExportSession) async throws -> URL {
-        try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<URL, Error>) in
+        print("📤 Starting export...")
+        print("🎬 Using preset: \(session.presetName)")
+        if let fileType = session.outputFileType {
+            print("📼 Output file type: \(fileType.rawValue)")
+        }
+        
+        if let videoComposition = session.videoComposition {
+            let size = videoComposition.renderSize
+            let fps = 1.0 / videoComposition.frameDuration.seconds
+            print("🎥 Video composition: \(Int(size.width))x\(Int(size.height)) @ \(Int(fps)) fps")
+        }
+        
+        return try await withUnsafeThrowingContinuation { continuation in
             session.exportAsynchronously {
-                Task { @MainActor in
-                    if session.status == .completed, let outputURL = session.outputURL {
+                switch session.status {
+                case .completed:
+                    print("✅ Export completed successfully")
+                    if let outputURL = session.outputURL {
+                        print("📁 Output saved to: \(outputURL.path)")
                         continuation.resume(returning: outputURL)
                     } else {
-                        continuation.resume(throwing: session.error ?? NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Export failed"]))
+                        print("❌ Export completed but no output URL")
+                        continuation.resume(throwing: NSError(domain: "VideoService", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Export completed but no output URL"]))
                     }
+                case .failed:
+                    print("❌ Export failed: \(String(describing: session.error))")
+                    if let error = session.error {
+                        print("💥 Error details: \(error.localizedDescription)")
+                    }
+                    continuation.resume(throwing: session.error ?? NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Export failed with unknown error"]))
+                case .cancelled:
+                    print("⚠️ Export cancelled")
+                    continuation.resume(throwing: NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Export cancelled"]))
+                default:
+                    print("❓ Unexpected export status: \(session.status.rawValue)")
+                    continuation.resume(throwing: NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Unexpected export status"]))
                 }
             }
         }
@@ -279,19 +363,23 @@ public class VideoService: ObservableObject {
         export.outputURL = tempURL
         export.outputFileType = .mp4
         
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        return try await withUnsafeThrowingContinuation { continuation in
             export.exportAsynchronously {
-                Task { @MainActor in
-                continuation.resume()
+                switch export.status {
+                case .completed:
+                    continuation.resume(returning: tempURL)
+                case .failed:
+                    continuation.resume(throwing: export.error ?? NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to compress video: \(String(describing: export.error))"]))
+                case .cancelled:
+                    continuation.resume(throwing: NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Export cancelled"]))
+                default:
+                    continuation.resume(throwing: NSError(domain: "VideoService", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Unexpected export status: \(export.status)"]))
                 }
             }
         }
-        
-        if export.status != .completed {
-            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to compress video: \(String(describing: export.error))"])
-        }
-        
-        return tempURL
     }
     
     public func getVideoMetadata(url: URL) async throws -> [String: Any] {
@@ -403,7 +491,7 @@ public class VideoService: ObservableObject {
         videoComposition.renderSize = try await compositionVideoTrack.load(.naturalSize)
         videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
         
-        let exportSession = try self.createExportSession(for: composition, videoComposition: videoComposition)
+        let exportSession = try await self.createExportSession(for: composition, videoComposition: videoComposition)
         return try await self.export(using: exportSession)
     }
     
@@ -431,26 +519,151 @@ public class VideoService: ObservableObject {
         }
     }
     
-    public func createClip(from url: URL, startTime: CMTime, duration: CMTime) async throws -> VideoClip {
-        // Validate time ranges
-        let asset = AVAsset(url: url)
-        let assetDuration = try await asset.load(.duration)
+    private func validateVideoTrack(_ track: AVAssetTrack) async throws -> CGSize {
+        let size = try await track.load(.naturalSize)
+        let transform = try await track.load(.preferredTransform)
         
-        guard startTime >= .zero,
-              duration > .zero,
-              startTime + duration <= assetDuration else {
-            throw NSError(domain: "VideoService", code: -1, 
-                         userInfo: [NSLocalizedDescriptionKey: "Invalid time range for clip"])
+        print("🔍 Track validation:")
+        print("  • Natural size: \(size)")
+        print("  • Preferred transform: \(transform)")
+        
+        // Get the actual dimensions after applying the transform
+        let rect = CGRect(origin: .zero, size: size).applying(transform)
+        print("  • Computed rect: \(rect)")
+        let finalSize = CGSize(width: abs(rect.width), height: abs(rect.height))
+        print("  • Final size after abs(): \(finalSize)")
+        
+        // Validate dimensions
+        guard finalSize.width > 0, finalSize.width.isFinite,
+              finalSize.height > 0, finalSize.height.isFinite else {
+            print("❌ Invalid dimensions detected:")
+            print("  • Width: \(finalSize.width) (valid: \(finalSize.width > 0 && finalSize.width.isFinite))")
+            print("  • Height: \(finalSize.height) (valid: \(finalSize.height > 0 && finalSize.height.isFinite))")
+            throw NSError(domain: "VideoService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "Invalid video dimensions"])
         }
         
-        return VideoClip(sourceURL: url, startTime: startTime, duration: duration)
+        return finalSize
+    }
+    
+    public func createClip(from url: URL, startTime: CMTime, duration: CMTime) async throws -> VideoClip {
+        // Download the asset if needed to obtain a local file URL
+        let localURL = try await downloadRemoteAssetIfNeeded(url: url)
+        print("🎥 Creating clip from local URL: \(localURL)")
+        
+        let asset = AVAsset(url: localURL)
+        guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
+            throw NSError(domain: "VideoService", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "No video track found"])
+        }
+        
+        // Validate time ranges if necessary (existing validations)...
+        print("⏱️ Valid time range: start=\(startTime.seconds), duration=\(duration.seconds)")
+        
+        return VideoClip(sourceURL: localURL, startTime: startTime, duration: duration)
+    }
+    
+    public func stitchClips(_ clips: [VideoClip]) async throws -> URL {
+        guard !clips.isEmpty else {
+            throw NSError(domain: "VideoService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "No clips provided"])
+        }
+        
+        print("🎬 Starting to stitch \(clips.count) clips")
+        
+        // Create composition
+        let composition = AVMutableComposition()
+        guard let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+            throw NSError(domain: "VideoService", code: -1,
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to create composition video track"])
+        }
+        
+        // Create audio track only if needed
+        var compositionAudioTrack: AVMutableCompositionTrack?
+        
+        var timeCursor = CMTime.zero
+        var naturalSize: CGSize = .zero
+        
+        // First pass: validate all clips and determine output size
+        print("🔍 Validating clips...")
+        for (index, clip) in clips.enumerated() {
+            let localURL = try await downloadRemoteAssetIfNeeded(url: clip.sourceURL)
+            let asset = AVAsset(url: localURL)
+            let tracks = try await asset.loadTracks(withMediaType: .video)
+            guard let videoTrack = tracks.first else {
+                throw NSError(domain: "VideoService", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "No video track in clip \(index)"])
+            }
+            
+            let trackSize = try await videoTrack.load(.naturalSize)
+            if naturalSize == .zero {
+                naturalSize = trackSize
+                print("📏 Using dimensions from first clip: \(naturalSize)")
+            }
+            
+            // Create audio track if this clip has audio
+            if compositionAudioTrack == nil,
+               let _ = try? await asset.loadTracks(withMediaType: .audio).first {
+                compositionAudioTrack = composition.addMutableTrack(
+                    withMediaType: .audio,
+                    preferredTrackID: kCMPersistentTrackID_Invalid
+                )
+            }
+        }
+        
+        // Second pass: build composition
+        print("🎬 Building composition...")
+        for (index, clip) in clips.enumerated() {
+            print("📎 Processing clip \(index + 1)/\(clips.count)")
+            
+            let localURL = try await downloadRemoteAssetIfNeeded(url: clip.sourceURL)
+            let asset = AVAsset(url: localURL)
+            
+            // Handle video track
+            if let videoTrack = try? await asset.loadTracks(withMediaType: .video).first {
+                let timeRange = CMTimeRange(start: clip.startTime, duration: clip.duration)
+                try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: timeCursor)
+                print("✅ Inserted video track for clip \(index + 1)")
+            }
+            
+            // Handle audio track if it exists
+            if let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first,
+               let compositionAudioTrack = compositionAudioTrack {
+                let timeRange = CMTimeRange(start: clip.startTime, duration: clip.duration)
+                try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: timeCursor)
+                print("✅ Inserted audio track for clip \(index + 1)")
+            }
+            
+            timeCursor = timeCursor + clip.duration
+        }
+        
+        // Create video composition with fixed 1280x720 output size
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.renderSize = CGSize(width: 1280, height: 720)
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        
+        // Create a single instruction for the entire duration
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: composition.duration)
+        
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
+        instruction.layerInstructions = [layerInstruction]
+        videoComposition.instructions = [instruction]
+        
+        print("📤 Exporting final video...")
+        let exportSession = try await createExportSession(for: composition, videoComposition: videoComposition)
+        return try await export(using: exportSession)
     }
     
     public func renderClip(_ clip: VideoClip) async throws -> URL {
+        print("🎥 Starting to render clip from URL: \(clip.sourceURL)")
+        print("🎬 Source video type: \(try await getVideoFileType(clip.sourceURL))")
+        
         let asset = AVAsset(url: clip.sourceURL)
         let composition = AVMutableComposition()
         
-        guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first,
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        guard let videoTrack = videoTracks.first,
               let compositionVideoTrack = composition.addMutableTrack(
                 withMediaType: .video,
                 preferredTrackID: kCMPersistentTrackID_Invalid
@@ -459,19 +672,24 @@ public class VideoService: ObservableObject {
                          userInfo: [NSLocalizedDescriptionKey: "Failed to create video track"])
         }
         
+        print("📐 Original video dimensions: \(try await videoTrack.load(.naturalSize))")
+        print("🎯 Time range - start: \(clip.startTime.seconds), duration: \(clip.duration.seconds)")
+        
         let timeRange = CMTimeRange(start: clip.startTime, duration: clip.duration)
         try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: .zero)
         
-        if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first,
+        if let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first,
            let compositionAudioTrack = composition.addMutableTrack(
             withMediaType: .audio,
             preferredTrackID: kCMPersistentTrackID_Invalid
            ) {
             try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: .zero)
+            print("🔊 Audio track added")
         }
         
         var videoComposition: AVMutableVideoComposition?
         if let filter = clip.filter {
+            print("🎨 Applying filter: \(String(describing: filter))")
             let context = self.ciContext
             videoComposition = AVMutableVideoComposition(asset: composition) { request in
                 var outputImage = request.sourceImage
@@ -481,8 +699,8 @@ public class VideoService: ObservableObject {
                     if let filter = CIFilter(name: "CIColorControls") {
                         filter.setValue(outputImage, forKey: kCIInputImageKey)
                         filter.setValue(CGFloat(value), forKey: kCIInputBrightnessKey)
-                        if let output = filter.outputImage {
-                            outputImage = output
+                        if let filtered = filter.outputImage {
+                            outputImage = filtered
                         }
                     }
                     
@@ -490,8 +708,8 @@ public class VideoService: ObservableObject {
                     if let filter = CIFilter(name: "CIColorControls") {
                         filter.setValue(outputImage, forKey: kCIInputImageKey)
                         filter.setValue(CGFloat(value), forKey: kCIInputContrastKey)
-                        if let output = filter.outputImage {
-                            outputImage = output
+                        if let filtered = filter.outputImage {
+                            outputImage = filtered
                         }
                     }
                     
@@ -499,8 +717,8 @@ public class VideoService: ObservableObject {
                     if let filter = CIFilter(name: "CIColorControls") {
                         filter.setValue(outputImage, forKey: kCIInputImageKey)
                         filter.setValue(CGFloat(value), forKey: kCIInputSaturationKey)
-                        if let output = filter.outputImage {
-                            outputImage = output
+                        if let filtered = filter.outputImage {
+                            outputImage = filtered
                         }
                     }
                     
@@ -508,18 +726,18 @@ public class VideoService: ObservableObject {
                     if let filter = CIFilter(name: "CIVibrance") {
                         filter.setValue(outputImage, forKey: kCIInputImageKey)
                         filter.setValue(CGFloat(value), forKey: kCIInputAmountKey)
-                        if let output = filter.outputImage {
-                            outputImage = output
+                        if let filtered = filter.outputImage {
+                            outputImage = filtered
                         }
                     }
                     
                 case .temperature(let value):
                     if let filter = CIFilter(name: "CITemperatureAndTint") {
                         filter.setValue(outputImage, forKey: kCIInputImageKey)
-                        filter.setValue(CIVector(x: CGFloat(6500), y: 0), forKey: "inputNeutral")
+                        filter.setValue(CIVector(x: 6500, y: 0), forKey: "inputNeutral")
                         filter.setValue(CIVector(x: CGFloat(value), y: 0), forKey: "inputTargetNeutral")
-                        if let output = filter.outputImage {
-                            outputImage = output
+                        if let filtered = filter.outputImage {
+                            outputImage = filtered
                         }
                     }
                 }
@@ -531,149 +749,163 @@ public class VideoService: ObservableObject {
             videoComposition?.frameDuration = CMTime(value: 1, timescale: 30)
         }
         
-        let exportSession = try self.createExportSession(for: composition, videoComposition: videoComposition)
-        return try await self.export(using: exportSession)
+        print("📦 Creating export session...")
+        let exportSession = try await createExportSession(for: composition, videoComposition: videoComposition)
+        print("🎬 Export session preset: \(exportSession.presetName)")
+        print("📼 Output file type: \(exportSession.outputFileType?.rawValue ?? "unknown")")
+        
+        return try await export(using: exportSession)
     }
     
-    public func stitchClips(_ clips: [VideoClip]) async throws -> URL {
-        guard !clips.isEmpty else {
-            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No clips provided"])
+    private func getVideoFileType(_ url: URL) async throws -> String {
+        let asset = AVAsset(url: url)
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        guard let track = videoTracks.first else {
+            return "no video track"
         }
-        
-        let composition = AVMutableComposition()
-        var currentTime = CMTime.zero
-        
-        // Create tracks with specific parameters
-        guard let compositionVideoTrack = composition.addMutableTrack(
-            withMediaType: .video,
-            preferredTrackID: kCMPersistentTrackID_Invalid
-        ),
-        let compositionAudioTrack = composition.addMutableTrack(
-            withMediaType: .audio,
-            preferredTrackID: kCMPersistentTrackID_Invalid
-        ) else {
-            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition tracks"])
-        }
-        
-        // First pass: validate all clips and collect video properties
-        var naturalSize: CGSize = .zero
-        for (index, clip) in clips.enumerated() {
-            let asset = AVAsset(url: clip.sourceURL)
-            
-            guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
-                throw NSError(domain: "VideoService", code: -1, 
-                            userInfo: [NSLocalizedDescriptionKey: "No video track found in clip \(index)"])
-            }
-            
-            let trackSize = try await videoTrack.load(.naturalSize)
-            if naturalSize == .zero {
-                naturalSize = trackSize
-            }
-            
-            // Validate time range
-            let assetDuration = try await asset.load(.duration)
-            if clip.startTime + clip.duration > assetDuration {
-                throw NSError(domain: "VideoService", code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: "Invalid time range for clip \(index)"])
-            }
-        }
-        
-        // Second pass: add tracks to composition
-        for clip in clips {
-            let asset = AVAsset(url: clip.sourceURL)
-            guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else { continue }
-            
-            let timeRange = CMTimeRange(start: clip.startTime, duration: clip.duration)
-            
-            // Scale and position video to match first clip's dimensions
-            let trackSize = try await videoTrack.load(.naturalSize)
-            let transform = try await videoTrack.load(.preferredTransform)
-            
-            let scaleX = naturalSize.width / trackSize.width
-            let scaleY = naturalSize.height / trackSize.height
-            let scale = min(scaleX, scaleY)
-            
-            let scaledTransform = CGAffineTransform(scaleX: scale, y: scale)
-                .concatenating(transform)
-            
-            try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: currentTime)
-            compositionVideoTrack.preferredTransform = scaledTransform
-            
-            if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first {
-                try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: currentTime)
-            }
-            
-            currentTime = currentTime + clip.duration
-        }
-        
-        let context = self.ciContext
-        let videoComposition = AVMutableVideoComposition(asset: composition) { request in
-            var outputImage = request.sourceImage
-            
-            var accumulatedTime = CMTime.zero
-            for clip in clips {
-                let clipEndTime = accumulatedTime + clip.duration
-                if request.compositionTime >= accumulatedTime && request.compositionTime < clipEndTime,
-                   let filter = clip.filter {
-                    switch filter {
-                    case .brightness(let value):
-                        if let filter = CIFilter(name: "CIColorControls") {
-                            filter.setValue(outputImage, forKey: kCIInputImageKey)
-                            filter.setValue(CGFloat(value), forKey: kCIInputBrightnessKey)
-                            if let output = filter.outputImage {
-                                outputImage = output
-                            }
-                        }
-                        
-                    case .contrast(let value):
-                        if let filter = CIFilter(name: "CIColorControls") {
-                            filter.setValue(outputImage, forKey: kCIInputImageKey)
-                            filter.setValue(CGFloat(value), forKey: kCIInputContrastKey)
-                            if let output = filter.outputImage {
-                                outputImage = output
-                            }
-                        }
-                        
-                    case .saturation(let value):
-                        if let filter = CIFilter(name: "CIColorControls") {
-                            filter.setValue(outputImage, forKey: kCIInputImageKey)
-                            filter.setValue(CGFloat(value), forKey: kCIInputSaturationKey)
-                            if let output = filter.outputImage {
-                                outputImage = output
-                            }
-                        }
-                        
-                    case .vibrance(let value):
-                        if let filter = CIFilter(name: "CIVibrance") {
-                            filter.setValue(outputImage, forKey: kCIInputImageKey)
-                            filter.setValue(CGFloat(value), forKey: kCIInputAmountKey)
-                            if let output = filter.outputImage {
-                                outputImage = output
-                            }
-                        }
-                        
-                    case .temperature(let value):
-                        if let filter = CIFilter(name: "CITemperatureAndTint") {
-                            filter.setValue(outputImage, forKey: kCIInputImageKey)
-                            filter.setValue(CIVector(x: CGFloat(6500), y: 0), forKey: "inputNeutral")
-                            filter.setValue(CIVector(x: CGFloat(value), y: 0), forKey: "inputTargetNeutral")
-                            if let output = filter.outputImage {
-                                outputImage = output
-                            }
-                        }
-                    }
-                    break
-                }
-                accumulatedTime = clipEndTime
-            }
-            
-            request.finish(with: outputImage, context: context)
-        }
-        
-        videoComposition.renderSize = naturalSize
-        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
-        
-        let exportSession = try self.createExportSession(for: composition, videoComposition: videoComposition)
-        return try await self.export(using: exportSession)
+        return try await getVideoCodecType(track)
     }
-} 
+    
+    func getVideoCodecType(_ track: AVAssetTrack) async throws -> String {
+        guard let formatDescriptions = try? await track.load(.formatDescriptions),
+              let formatDescription = formatDescriptions.first else {
+            return "no format description"
+        }
+        
+        let mediaSubType = CMFormatDescriptionGetMediaSubType(formatDescription)
+        return String(format: "%c%c%c%c",
+            (mediaSubType >> 24) & 0xff,
+            (mediaSubType >> 16) & 0xff,
+            (mediaSubType >> 8) & 0xff,
+            mediaSubType & 0xff)
+    }
+    
+    // MARK: - Video Format Handling
+    
+    private struct VideoFormat {
+        let codec: String
+        let dimensions: CGSize
+        let frameRate: Float
+        
+        // Make initializer internal to the struct
+        fileprivate init(codec: String, dimensions: CGSize, frameRate: Float) {
+            self.codec = codec
+            // Always force dimensions to 1280x720
+            self.dimensions = CGSize(width: 1280, height: 720)
+            self.frameRate = frameRate
+        }
+        
+        static func load(from track: AVAssetTrack) async throws -> VideoFormat {
+            let formatDescriptions = try await track.load(.formatDescriptions)
+            guard let formatDescription = formatDescriptions.first else {
+                throw NSError(domain: "VideoFormat", code: -1,
+                              userInfo: [NSLocalizedDescriptionKey: "No format description"])
+            }
+            
+            let mediaSubType = CMFormatDescriptionGetMediaSubType(formatDescription)
+            let codec = String(format: "%c%c%c%c",
+                               (mediaSubType >> 24) & 0xff,
+                               (mediaSubType >> 16) & 0xff,
+                               (mediaSubType >> 8) & 0xff,
+                               mediaSubType & 0xff)
+            
+            let naturalSize = try await track.load(.naturalSize)
+            guard naturalSize.width > 0, naturalSize.width.isFinite,
+                  naturalSize.height > 0, naturalSize.height.isFinite else {
+                throw NSError(domain: "VideoFormat", code: -1,
+                              userInfo: [NSLocalizedDescriptionKey: "Invalid natural size"])
+            }
+            
+            let transform = (try? await track.load(.preferredTransform)) ?? .identity
+            let rect = CGRect(origin: .zero, size: naturalSize).applying(transform)
+            let dimensions = CGSize(width: abs(rect.width), height: abs(rect.height))
+            let frameRate = (try? await track.load(.nominalFrameRate)) ?? 30.0
+            
+            return VideoFormat(codec: codec, dimensions: dimensions, frameRate: frameRate)
+        }
+        
+        var description: String {
+            "\(codec) \(Int(dimensions.width))x\(Int(dimensions.height))@\(Int(frameRate))fps"
+        }
+    }
+    
+    private func logVideoDetails(_ asset: AVAsset) async {
+        print("📹 Checking video details...")
+        do {
+            let tracks = try await asset.loadTracks(withMediaType: .video)
+            guard let track = tracks.first else {
+                print("❌ Could not get video details: no video track")
+                return
+            }
+            
+            if let format = try? await VideoFormat.load(from: track) {
+                print("📹 Details: \(format.description)")
+            } else {
+                print("❌ Could not get video details: format loading failed")
+            }
+        } catch {
+            print("❌ Could not get video details: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func adjustedTransform(for videoTrack: AVAssetTrack, targetSize: CGSize) async throws -> CGAffineTransform {
+        let trackSize = try await videoTrack.load(.naturalSize)
+        let originalTransform = try await videoTrack.load(.preferredTransform)
+        
+        print("🔄 Transform calculation:")
+        print("  • Track size: \(trackSize)")
+        print("  • Original transform: \(originalTransform)")
+        
+        // First apply the original transform to get the correct orientation
+        let videoRect = CGRect(origin: .zero, size: trackSize).applying(originalTransform)
+        print("  • Video rect after transform: \(videoRect)")
+        
+        let videoWidth = abs(videoRect.width)
+        let videoHeight = abs(videoRect.height)
+        print("  • Original dimensions - width: \(videoWidth), height: \(videoHeight)")
+        
+        // Calculate scale to fit within 1280x720 while maintaining aspect ratio
+        let scaleWidth = 1280.0 / videoWidth
+        let scaleHeight = 720.0 / videoHeight
+        let scale = min(scaleWidth, scaleHeight)
+        
+        let scaledWidth = videoWidth * scale
+        let scaledHeight = videoHeight * scale
+        print("  • Scale factor: \(scale)")
+        print("  • Scaled dimensions - width: \(scaledWidth), height: \(scaledHeight)")
+        
+        // Center the scaled video
+        let tx = (1280 - scaledWidth) / 2.0
+        let ty = (720 - scaledHeight) / 2.0
+        print("  • Center translation - x: \(tx), y: \(ty)")
+        
+        // Create final transform: original transform -> scale -> center
+        let finalTransform = originalTransform
+            .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+            .concatenating(CGAffineTransform(translationX: tx, y: ty))
+        
+        print("  • Final transform: \(finalTransform)")
+        return finalTransform
+    }
+    
+    private func downloadRemoteAssetIfNeeded(url: URL) async throws -> URL {
+        // If the URL is already a file URL, return it
+        if url.isFileURL {
+            return url
+        }
+        
+        print("Downloading remote asset: \(url)")
+        let (data, _) = try await URLSession.shared.data(from: url)
+        
+        // Determine file extension or default to mp4
+        let fileExtension = url.pathExtension.isEmpty ? "mp4" : url.pathExtension
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension(fileExtension)
+        
+        try data.write(to: tempURL)
+        print("Downloaded asset to: \(tempURL)")
+        return tempURL
+    }
+}
+
