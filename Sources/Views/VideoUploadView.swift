@@ -9,6 +9,7 @@ import ViewModels
 @MainActor
 public struct VideoUploadView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var viewModel = VideoUploadViewModel()
     @State private var selectedItem: PhotosPickerItem?
     @State private var title = ""
@@ -16,7 +17,7 @@ public struct VideoUploadView: View {
     @State private var videoType: VideoType = .property
     @State private var propertyId: String = ""
     @State private var showPropertySelection = false
-    @State private var isUploading = false
+    @State private var isLoading = false
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showVideoEditor = false
@@ -86,13 +87,13 @@ public struct VideoUploadView: View {
                 
                 Section {
                     Button(action: uploadVideo) {
-                        if isUploading {
+                        if isLoading {
                             ProgressView()
                         } else {
                             Text("Upload Video")
                         }
                     }
-                    .disabled(isUploading || viewModel.videoURL == nil || title.isEmpty)
+                    .disabled(isLoading || viewModel.videoURL == nil || title.isEmpty)
                 }
             }
             .navigationTitle("Upload Video")
@@ -137,9 +138,19 @@ public struct VideoUploadView: View {
     private func uploadVideo() {
         guard let videoURL = viewModel.videoURL else { return }
         
-        isUploading = true
+        isLoading = true
         Task {
             do {
+                let suggestions = try? await appViewModel.aiEditorService.getContentSuggestions(for: videoURL, property: nil)
+                if let suggestions = suggestions {
+                    if title.isEmpty {
+                        title = suggestions.title
+                    }
+                    if description.isEmpty {
+                        description = suggestions.description
+                    }
+                }
+                
                 _ = try await videoService.uploadVideo(
                     url: videoURL,
                     title: title,
@@ -158,7 +169,7 @@ public struct VideoUploadView: View {
                 errorMessage = error.localizedDescription
                 showError = true
             }
-            isUploading = false
+            isLoading = false
         }
     }
 }
@@ -227,4 +238,4 @@ private struct PropertyPickerView: View {
             }
         }
     }
-} 
+}

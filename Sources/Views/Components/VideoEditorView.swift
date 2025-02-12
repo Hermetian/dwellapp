@@ -34,6 +34,8 @@ fileprivate struct VideoFilterEditorView: View {
     @State private var vibrance: Float = 0
     @State private var temperature: Float = 6500
     @State private var previewURL: URL
+    @State private var showAIContentSuggestions = false
+    @State private var showAIInteractiveEditing = false
     @Environment(\.dismiss) private var dismiss
     
     init(videoURL: URL, onSave: @escaping (URL) -> Void) {
@@ -45,7 +47,6 @@ fileprivate struct VideoFilterEditorView: View {
     public var body: some View {
         NavigationView {
             VStack(spacing: 16) {
-                // Video preview
                 VideoPlayer(player: player)
                     .frame(height: 250)
                     .cornerRadius(12)
@@ -59,7 +60,18 @@ fileprivate struct VideoFilterEditorView: View {
                         }
                     )
                 
-                // Editing controls
+                HStack(spacing: 16) {
+                    Button("AI Content Suggestions") {
+                        showAIContentSuggestions = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    
+                    Button("Interactive AI Edit") {
+                        showAIInteractiveEditing = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                
                 ScrollView {
                     VStack(spacing: 20) {
                         FilterControl(
@@ -139,6 +151,12 @@ fileprivate struct VideoFilterEditorView: View {
                 player?.pause()
                 player = nil
             }
+            .sheet(isPresented: $showAIContentSuggestions) {
+                AIContentSuggestionView(videoURL: previewURL, property: nil, videoService: videoService)
+            }
+            .sheet(isPresented: $showAIInteractiveEditing) {
+                AIAssistedInteractiveEditingView(videoURL: $previewURL, videoService: videoService)
+            }
         }
     }
     
@@ -163,4 +181,4 @@ fileprivate struct VideoFilterEditorView: View {
             }
         }
     }
-} 
+}

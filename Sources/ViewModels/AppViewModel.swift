@@ -9,6 +9,7 @@ public final class AppViewModel: ObservableObject {
     @Published public var profileViewModel: ProfileViewModel
     @Published public var videoViewModel: VideoViewModel
     @Published public var messagingViewModel: MessagingViewModel
+    @Published public var aiEditorService: AIAssistedEditorService
     
     public init() {
         let databaseService = DatabaseService()
@@ -21,5 +22,6 @@ public final class AppViewModel: ObservableObject {
         self.profileViewModel = ProfileViewModel(authService: AuthService(), databaseService: databaseService, storageService: storageService)
         self.videoViewModel = VideoViewModel(databaseService: databaseService, storageService: storageService, videoService: videoService)
         self.messagingViewModel = MessagingViewModel()
+        self.aiEditorService = AIAssistedEditorService(videoService: videoService)
     }
-} 
+}
