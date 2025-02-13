@@ -1,10 +1,11 @@
 import Foundation
 import CryptoKit
+import CoreMedia
 
 public class GoogleCloudService {
     private let session: URLSession
     private let credentials: [String: Any]
-    private let baseVideoURL = "https://videointelligence.googleapis.com/v1"
+    private let baseVideoURL = "https://videintelligence.googleapis.com/v1"
     private let baseSpeechURL = "https://speech.googleapis.com/v1"
     private let baseLanguageURL = "https://language.googleapis.com/v1"
     private let tokenURL = "https://oauth2.googleapis.com/token"
@@ -188,11 +189,42 @@ public class GoogleCloudService {
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
         let (data, _) = try await session.data(for: request)
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let annotationResults = json["annotationResults"] as? [[String: Any]],
+              let firstResult = annotationResults.first else {
+            throw NSError(domain: "GoogleCloudService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid video analysis response"])
+        }
         
-        // Process response and create VideoAnalysisResult
-        // This is a simplified version - you'll need to parse the actual response format
-        return VideoAnalysisResult(scenes: [], transcript: "Transcript from video", qualityIssues: [])
+        // Parse shotAnnotations into scenes
+        var scenes: [Scene] = []
+        if let shotAnnotations = firstResult["shotAnnotations"] as? [[String: Any]] {
+            for shot in shotAnnotations {
+                if let startTimeStr = shot["startTimeOffset"] as? String,
+                   let endTimeStr = shot["endTimeOffset"] as? String,
+                   let startTime = Double(startTimeStr.dropLast()),
+                   let endTime = Double(endTimeStr.dropLast()) {
+                    let scene = Scene(startTime: CMTime(seconds: startTime, preferredTimescale: 600),
+                                      endTime: CMTime(seconds: endTime, preferredTimescale: 600),
+                                      description: "Shot annotation scene")
+                    scenes.append(scene)
+                }
+            }
+        }
+        
+        // Parse speechTranscriptions to extract transcript
+        var transcript = ""
+        if let speechTranscriptions = firstResult["speechTranscriptions"] as? [[String: Any]],
+           let firstSpeech = speechTranscriptions.first,
+           let alternatives = firstSpeech["alternatives"] as? [[String: Any]],
+           let firstAlt = alternatives.first,
+           let transcriptText = firstAlt["transcript"] as? String {
+            transcript = transcriptText
+        }
+        
+        // Quality issues parsing can be added here; for now, leave it empty
+        let qualityIssues: [String] = []
+        
+        return VideoAnalysisResult(scenes: scenes, transcript: transcript, qualityIssues: qualityIssues)
     }
     
     // Speech to Text
@@ -217,10 +249,14 @@ public class GoogleCloudService {
         
         let (data, _) = try await session.data(for: request)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        
-        // Process response and extract transcript
-        // This is a simplified version - you'll need to parse the actual response format
-        return "Transcribed text"
+        guard let results = json?["results"] as? [[String: Any]],
+              let firstResult = results.first,
+              let alternatives = firstResult["alternatives"] as? [[String: Any]],
+              let firstAlternative = alternatives.first,
+              let transcript = firstAlternative["transcript"] as? String else {
+            throw NSError(domain: "GoogleCloudService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Transcript not found in response"])
+        }
+        return transcript
     }
     
     // Content Analysis and Generation
@@ -241,9 +277,12 @@ public class GoogleCloudService {
         let (data, _) = try await session.data(for: request)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         
-        // Process response and create LanguageAnalysis
-        // This is a simplified version - you'll need to parse the actual response format
-        return LanguageAnalysis(score: 0.5, magnitude: 1.0)
+        guard let documentSentiment = json?["documentSentiment"] as? [String: Any],
+              let scoreDouble = documentSentiment["score"] as? Double,
+              let magnitudeDouble = documentSentiment["magnitude"] as? Double else {
+            throw NSError(domain: "GoogleCloudService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Sentiment analysis data not found"])
+        }
+        return LanguageAnalysis(score: Float(scoreDouble), magnitude: Float(magnitudeDouble))
     }
 }
 

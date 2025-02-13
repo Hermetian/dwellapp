@@ -565,21 +565,80 @@ public class VideoService: ObservableObject {
         }
         
         var currentTime = CMTime.zero
+        var instructions: [AVMutableVideoCompositionInstruction] = []
         
+        // First pass: validate all clips and determine output dimensions
+        var outputSize: CGSize?
         for clip in clips {
             let asset = AVAsset(url: clip.sourceURL)
-            let timeRange = CMTimeRange(start: clip.startTime, end: clip.duration)
-            let assetTrack = try await asset.loadTracks(withMediaType: .video).first!
+            guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
+                throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No video track found in clip"])
+            }
             
-            try compositionTrack.insertTimeRange(
-                timeRange,
-                of: assetTrack,
+            let trackSize = try await validateVideoTrack(videoTrack)
+            if outputSize == nil {
+                outputSize = trackSize
+            }
+        }
+        
+        guard let finalOutputSize = outputSize else {
+            throw NSError(domain: "VideoService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not determine output dimensions"])
+        }
+        
+        // Second pass: compose video with normalized timelines
+        for clip in clips {
+            let asset = AVAsset(url: clip.sourceURL)
+            guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else { continue }
+            
+            // Create a timeRange that starts from zero relative to the source
+            let normalizedTimeRange = CMTimeRange(
+                start: .zero,
+                duration: clip.duration
+            )
+            
+            // Insert the clip starting from the current composition time
+            try await compositionTrack.insertTimeRange(
+                normalizedTimeRange,
+                of: videoTrack,
                 at: currentTime
             )
             
-            currentTime = CMTimeAdd(currentTime, timeRange.duration)
+            // Create a composition instruction for this segment
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: currentTime, duration: clip.duration)
+            
+            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionTrack)
+            
+            // Calculate and apply the transform for this clip
+            let transform = try await adjustedTransform(for: videoTrack, targetSize: finalOutputSize)
+            layerInstruction.setTransform(transform, at: currentTime)
+            
+            instruction.layerInstructions = [layerInstruction]
+            instructions.append(instruction)
+            
+            // Try to add audio if available
+            if let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first,
+               let compositionAudioTrack = composition.addMutableTrack(
+                withMediaType: .audio,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+               ) {
+                try compositionAudioTrack.insertTimeRange(
+                    normalizedTimeRange,
+                    of: audioTrack,
+                    at: currentTime
+                )
+            }
+            
+            currentTime = CMTimeAdd(currentTime, clip.duration)
         }
         
+        // Create and configure video composition
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.instructions = instructions
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        videoComposition.renderSize = finalOutputSize
+        
+        // Create export session
         let exportSession = AVAssetExportSession(
             asset: composition,
             presetName: AVAssetExportPresetHighestQuality
@@ -591,6 +650,7 @@ public class VideoService: ObservableObject {
         
         exportSession.outputURL = outputURL
         exportSession.outputFileType = .mp4
+        exportSession.videoComposition = videoComposition
         
         await exportSession.export()
         

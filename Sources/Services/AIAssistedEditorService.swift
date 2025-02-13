@@ -84,112 +84,132 @@ public class AIAssistedEditorService {
     // Generates a list of recommended edits based on the analysis.
     public func generateEditingRecommendations(analysis: AIVideoAnalysis) async throws -> [AIAssistedEditSuggestion] {
         var suggestions = [AIAssistedEditSuggestion]()
-        
-        // Process quality issues
-        if let issues = analysis.qualityIssues {
+
+        // Process quality issues using advanced heuristics
+        if let issues = analysis.qualityIssues, !issues.isEmpty {
             for issue in issues {
-                if issue.contains("scene changes") {
+                if issue.lowercased().contains("scene change") {
+                    let speedAdjustment: Float = issue.components(separatedBy: ",").count > 1 ? 0.75 : 0.85
                     suggestions.append(AIAssistedEditSuggestion(
-                        type: .speedAdjustment(rate: 0.8),
-                        suggestionText: "Slow down video slightly to make scene changes less jarring",
+                        type: .speedAdjustment(rate: speedAdjustment),
+                        suggestionText: "Adjust video speed to smooth out rapid scene changes",
                         confidence: 0.8
                     ))
                 }
                 
-                if issue.contains("audio quality") {
-                    // Suggest removing problematic audio segments or adding background music
-                    if let scene = analysis.scenes.first(where: { $0.description.contains("low audio quality") }) {
+                if issue.lowercased().contains("audio") {
+                    if let scene = analysis.scenes.first(where: { $0.description.lowercased().contains("poor audio") || $0.description.lowercased().contains("low audio") }) {
                         suggestions.append(AIAssistedEditSuggestion(
                             type: .trim(start: scene.startTime, end: scene.endTime),
-                            suggestionText: "Remove segment with poor audio quality",
+                            suggestionText: "Trim segment with poor audio quality for better overall sound",
                             confidence: 0.9
                         ))
                     }
                 }
             }
         }
-        
-        // Analyze transcript sentiment if available
-        if let transcript = analysis.transcript {
+
+        // Analyze transcript sentiment using actual sentiment score
+        if let transcript = analysis.transcript, !transcript.isEmpty {
             let sentimentAnalysis = try await cloudService.analyzeContent(text: transcript)
-            
-            // If sentiment is very positive, suggest highlighting those moments
-            if sentimentAnalysis.score > 0.8 {
+            if sentimentAnalysis.score >= 0.8 {
                 suggestions.append(AIAssistedEditSuggestion(
                     type: .filter(.brightness(0.1)),
-                    suggestionText: "Enhance positive moments with slightly brighter visuals",
-                    confidence: 0.7
+                    suggestionText: "Boost brightness to accentuate positive moments",
+                    confidence: 0.75
+                ))
+            } else if sentimentAnalysis.score <= 0.2 {
+                suggestions.append(AIAssistedEditSuggestion(
+                    type: .filter(.contrast(0.1)),
+                    suggestionText: "Enhance contrast to emphasize dramatic moments",
+                    confidence: 0.75
                 ))
             }
         }
-        
-        // Process scenes for potential improvements
+
+        // Process scenes with advanced duration logic
         for scene in analysis.scenes {
-            if scene.description.contains("exterior") || scene.description.contains("landscape") {
+            let durationSeconds = scene.endTime.seconds - scene.startTime.seconds
+            if scene.description.lowercased().contains("exterior") || scene.description.lowercased().contains("landscape") {
                 suggestions.append(AIAssistedEditSuggestion(
                     type: .filter(.contrast(0.1)),
-                    suggestionText: "Enhance exterior shots with subtle contrast boost",
+                    suggestionText: "Increase contrast to bring out exterior scene details",
                     confidence: 0.8
                 ))
             }
             
-            if scene.endTime - scene.startTime < CMTime(seconds: 2, preferredTimescale: 600) {
+            if durationSeconds < 2.0 {
                 suggestions.append(AIAssistedEditSuggestion(
                     type: .speedAdjustment(rate: 0.8),
-                    suggestionText: "Slow down quick scenes for better viewing",
+                    suggestionText: "Slow down the brief scene for better visibility",
                     confidence: 0.7
                 ))
             }
         }
-        
+
+        // Fallback suggestion if no recommendations were generated
+        if suggestions.isEmpty {
+            suggestions.append(AIAssistedEditSuggestion(
+                type: .filter(.saturation(0.1)),
+                suggestionText: "Apply subtle saturation to enhance overall video quality",
+                confidence: 0.6
+            ))
+        }
+
         return suggestions
     }
     
     // Interprets a high-level editing command and applies changes. For example, creating a highlight reel.
     public func applyEditingCommand(command: String, on videoURL: URL) async throws -> URL {
-        if command.lowercased().contains("highlight reel") {
-            let videoAnalysis = try await analyzeVideoContent(videoURL: videoURL)
-            
-            // Find the most interesting scenes based on description and duration
-            let highlightScenes = videoAnalysis.scenes.filter { scene in
-                let duration = scene.endTime - scene.startTime
-                return duration.seconds >= 3 && duration.seconds <= 10 &&
-                       !scene.description.isEmpty
-            }.prefix(5)
-            
-            // Create video clips for each scene
+        let loweredCommand = command.lowercased()
+        if loweredCommand.contains("highlight reel") {
+            let analysis = try await analyzeVideoContent(videoURL: videoURL)
+
+            // Select scenes with duration between 3 and 10 seconds and non-empty descriptions, sorted by duration descending
+            let candidates = analysis.scenes.filter { scene in
+                let duration = scene.endTime.seconds - scene.startTime.seconds
+                return duration >= 3 && duration <= 10 && !scene.description.isEmpty
+            }.sorted { (s1, s2) in
+                return (s1.endTime.seconds - s1.startTime.seconds) > (s2.endTime.seconds - s2.startTime.seconds)
+            }
+
+            let highlightScenes = Array(candidates.prefix(5))
+
+            // Create video clips for selected scenes
             var clips: [VideoService.VideoClip] = []
             for scene in highlightScenes {
-                let clip = VideoService.VideoClip(
-                    sourceURL: videoURL,
-                    startTime: scene.startTime,
-                    duration: scene.endTime - scene.startTime
-                )
+                let duration = CMTime(seconds: scene.endTime.seconds - scene.startTime.seconds, preferredTimescale: 600)
+                let clip = VideoService.VideoClip(sourceURL: videoURL, startTime: scene.startTime, duration: duration)
                 clips.append(clip)
             }
-            
+
             return try await videoService.stitchClips(clips)
         }
-        
-        if command.lowercased().contains("enhance") {
-            // Apply a combination of subtle enhancements
+
+        if loweredCommand.contains("enhance") {
             var enhancedURL = videoURL
-            
-            if command.lowercased().contains("bright") {
-                enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: .brightness(0.1))
+
+            // Define filter keywords and corresponding filters
+            let filters: [(keyword: String, filter: VideoService.VideoFilter)] = [
+                ("bright", .brightness(0.1)),
+                ("contrast", .contrast(0.1)),
+                ("color", .saturation(0.1))
+            ]
+
+            for (keyword, filter) in filters {
+                if loweredCommand.contains(keyword) {
+                    enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: filter)
+                }
             }
-            
-            if command.lowercased().contains("contrast") {
-                enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: .contrast(0.1))
+
+            // If no specific filter was applied, use a default enhancement
+            if enhancedURL == videoURL {
+                enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: .brightness(0.05))
             }
-            
-            if command.lowercased().contains("color") {
-                enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: .saturation(0.1))
-            }
-            
+
             return enhancedURL
         }
-        
+
         // Default to returning original URL if command not recognized
         return videoURL
     }
