@@ -313,11 +313,19 @@ public final class PropertyViewModel: ObservableObject {
         try await updateProperty(id: propertyId, data: [
             "videoIds": FieldValue.arrayUnion([videoId])
         ])
+        try await databaseService.updateVideo(id: videoId, data: [
+            "videoType": Core.VideoType.property.rawValue,
+            "propertyId": propertyId
+        ])
     }
     
     public func removeVideoFromProperty(propertyId: String, videoId: String) async throws {
         try await updateProperty(id: propertyId, data: [
             "videoIds": FieldValue.arrayRemove([videoId])
+        ])
+        try await databaseService.updateVideo(id: videoId, data: [
+            "videoType": Core.VideoType.forFun.rawValue,
+            "propertyId": NSNull()  // This will set the field to nil in Firestore
         ])
     }
     

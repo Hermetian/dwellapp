@@ -38,9 +38,22 @@ public struct FeedView: View {
                         ForEach(Array(videoFeedVM.videos.enumerated()), id: \.element.id) { index, video in
                             VideoPlayerCard(
                                 video: video,
-                                onPropertyTap: { property in
-                                    selectedProperty = property
-                                    showPropertyDetails = true
+                                onPropertyTap: {
+                                    guard let propertyId = video.propertyId, !propertyId.isEmpty else {
+                                        print("No propertyId for video \(video.id ?? "")")
+                                        return
+                                    }
+                                    Task {
+                                        do {
+                                            let db = Firestore.firestore()
+                                            let docRef = db.collection("properties").document(propertyId)
+                                            let prop = try await docRef.getDocument(as: Property.self)
+                                            selectedProperty = prop
+                                            showPropertyDetails = true
+                                        } catch {
+                                            print("Error loading property: \(error)")
+                                        }
+                                    }
                                 }
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -230,8 +243,8 @@ private struct FilterSheet: View {
 }
 
 private struct VideoPlayerCard: View {
-    let video: Video
-    let onPropertyTap: (Property) -> Void
+    @State private var currentVideo: Video
+    let onPropertyTap: () -> Void
     
     @StateObject private var playerVM = VideoPlayerViewModel()
     @EnvironmentObject private var chatViewModel: ChatViewModel
@@ -243,6 +256,25 @@ private struct VideoPlayerCard: View {
     @AppStorage("hasSeenChatTip") private var hasSeenChatTip = false
     @State private var showChatTip = false
     
+    init(video: Video, onPropertyTap: @escaping () -> Void) {
+        self.onPropertyTap = onPropertyTap
+        _currentVideo = State(initialValue: video)
+    }
+    
+    private func refreshVideo() {
+        guard let videoId = currentVideo.id, !videoId.isEmpty else { return }
+        Task {
+            do {
+                let db = Firestore.firestore()
+                let docRef = db.collection("videos").document(videoId)
+                let updatedVideo = try await docRef.getDocument(as: Video.self)
+                currentVideo = updatedVideo
+            } catch {
+                print("Error refreshing video: \(error)")
+            }
+        }
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
@@ -263,28 +295,31 @@ private struct VideoPlayerCard: View {
                     HStack(alignment: .bottom, spacing: 20) {
                         // Left side - Video info
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(video.title)
+                            Text(currentVideo.title)
                                 .font(.headline)
                             
-                            if video.videoType == .property, let property = property {
-                                HStack {
-                                    Text(formatPrice(property.price, type: property.type))
-                                        .font(.subheadline)
-                                    Spacer()
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "bed.double.fill")
-                                        Text("\(property.bedrooms)")
-                                        Image(systemName: "drop.fill")
-                                        Text(String(format: "%.1f", property.bathrooms))
+                            if currentVideo.videoType == .property,
+                               let propertyId = currentVideo.propertyId,
+                               !propertyId.isEmpty {
+                                if let prop = property {
+                                    HStack {
+                                        Text(formatPrice(prop.price, type: prop.type))
+                                            .font(.subheadline)
+                                        Spacer()
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "bed.double.fill")
+                                            Text("\(prop.bedrooms)")
+                                            Image(systemName: "drop.fill")
+                                            Text(String(format: "%.1f", prop.bathrooms))
+                                        }
+                                        .font(.caption)
                                     }
-                                    .font(.caption)
+                                    Text(currentVideo.description)
+                                        .font(.subheadline)
                                 }
                                 
-                                Text(video.description)
-                                    .font(.subheadline)
-                                
                                 Button {
-                                    onPropertyTap(property)
+                                    onPropertyTap()
                                 } label: {
                                     HStack {
                                         Image(systemName: "house.fill")
@@ -304,7 +339,7 @@ private struct VideoPlayerCard: View {
                         // Right side - Action buttons
                         VStack(spacing: 20) {
                             Button {
-                                print("Preview button pressed for video: \(video.title)")
+                                print("Preview button pressed for video: \(currentVideo.title)")
                                 showPreview = true
                             } label: {
                                 VStack {
@@ -318,7 +353,10 @@ private struct VideoPlayerCard: View {
                                 .cornerRadius(8)
                             }
                             
-                            if video.videoType == .property && video.userId != Auth.auth().currentUser?.uid {
+                            if currentVideo.videoType == .property,
+                               let propertyId = currentVideo.propertyId,
+                               !propertyId.isEmpty,
+                               currentVideo.userId != Auth.auth().currentUser?.uid {
                                 Button {
                                     showChatAlert = true
                                     hasSeenChatTip = true
@@ -382,17 +420,9 @@ private struct VideoPlayerCard: View {
             }
         }
         .onAppear {
-            // Show chat tip after a short delay if it's a property video and user hasn't seen it
-            if video.videoType == .property && video.userId != Auth.auth().currentUser?.uid && !hasSeenChatTip {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation {
-                        showChatTip = true
-                    }
-                }
-            }
-            
+            refreshVideo()
             loadVideo()
-            if video.videoType == .property {
+            if currentVideo.videoType == .property {
                 loadProperty()
             }
         }
@@ -404,12 +434,11 @@ private struct VideoPlayerCard: View {
         .sheet(isPresented: $showPreview) {
             NavigationView {
                 Group {
-                    if let url = URL(string: video.videoUrl) {
+                    if let url = URL(string: currentVideo.videoUrl) {
                         VideoPlayer(player: AVPlayer(url: url))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .edgesIgnoringSafeArea(.all)
                             .onAppear {
-                                // Initialize and play the preview player
                                 previewPlayer = AVPlayer(url: url)
                                 previewPlayer?.play()
                             }
@@ -433,7 +462,7 @@ private struct VideoPlayerCard: View {
                 message: Text("Would you like to start a conversation about this property?"),
                 primaryButton: .default(Text("Yes")) {
                     Task {
-                        await chatViewModel.createChannel(forVideo: video)
+                        await chatViewModel.createChannel(forVideo: currentVideo)
                     }
                 },
                 secondaryButton: .cancel()
@@ -444,7 +473,7 @@ private struct VideoPlayerCard: View {
     private func loadVideo() {
         Task {
             isLoading = true
-            if let url = URL(string: video.videoUrl) {
+            if let url = URL(string: currentVideo.videoUrl) {
                 await playerVM.setVideo(url: url)
                 isLoading = false
             }
@@ -452,7 +481,10 @@ private struct VideoPlayerCard: View {
     }
     
     private func loadProperty() {
-        guard let propertyId = video.propertyId else { return }
+        guard let propertyId = currentVideo.propertyId, !propertyId.isEmpty else { 
+            property = nil
+            return 
+        }
         
         Task {
             do {
@@ -461,6 +493,7 @@ private struct VideoPlayerCard: View {
                 property = try await docRef.getDocument(as: Property.self)
             } catch {
                 print("Error loading property: \(error)")
+                property = nil
             }
         }
     }
