@@ -111,4 +111,6 @@ injected_container.xcconfig
 # Other
 *.env
 *.log
-.idea/ 
+.idea/
+dwell-app-8cfa8-de4ec234f734.json
+/Sources/Resources/sample_property.mp4

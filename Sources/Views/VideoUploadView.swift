@@ -141,13 +141,15 @@ public struct VideoUploadView: View {
         isLoading = true
         Task {
             do {
-                let suggestions = try? await appViewModel.aiEditorService.getContentSuggestions(for: videoURL, property: nil)
-                if let suggestions = suggestions {
-                    if title.isEmpty {
-                        title = suggestions.title
-                    }
-                    if description.isEmpty {
-                        description = suggestions.description
+                if let aiEditorService = appViewModel.aiEditorService {
+                    let suggestions = try? await aiEditorService.getContentSuggestions(for: videoURL, property: nil)
+                    if let suggestions = suggestions {
+                        if title.isEmpty {
+                            title = suggestions.title
+                        }
+                        if description.isEmpty {
+                            description = suggestions.description
+                        }
                     }
                 }
                 

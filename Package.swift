@@ -22,7 +22,7 @@ let package = Package(
             targets: ["Views"])
     ],
     dependencies: [
-        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", exact: "10.19.0")
+        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "10.19.0")
     ],
     targets: [
         .target(
@@ -55,16 +55,9 @@ let package = Package(
             dependencies: [
                 "Models",
                 "Services",
-                "ViewModels",
-                .product(name: "FirebaseAuth", package: "firebase-ios-sdk"),
-                .product(name: "FirebaseFirestore", package: "firebase-ios-sdk"),
-                .product(name: "FirebaseStorage", package: "firebase-ios-sdk")
+                "ViewModels"
             ],
-            path: "Sources/Views",
-            linkerSettings: [
-                .linkedFramework("UIKit", .when(platforms: [.iOS])),
-                .linkedFramework("AppKit", .when(platforms: [.macOS]))
-            ]
+            path: "Sources/Views"
         ),
         .executableTarget(
             name: "App",
