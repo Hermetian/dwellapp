@@ -107,4 +107,8 @@ public class VideoFeedViewModel: ObservableObject {
             loadMoreVideos()
         }
     }
+    
+    deinit {
+        cancellables.removeAll()
+    }
 } 

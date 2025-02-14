@@ -92,4 +92,8 @@ public class MessagingViewModel: ObservableObject {
             throw error
         }
     }
+    
+    deinit {
+        cancellables.removeAll()
+    }
 } 

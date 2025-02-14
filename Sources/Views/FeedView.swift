@@ -38,6 +38,8 @@ public struct FeedView: View {
                         ForEach(Array(videoFeedVM.videos.enumerated()), id: \.element.id) { index, video in
                             VideoPlayerCard(
                                 video: video,
+                                cardIndex: index,
+                                activeIndex: $videoFeedVM.currentIndex,
                                 onPropertyTap: {
                                     guard let propertyId = video.propertyId, !propertyId.isEmpty else {
                                         print("No propertyId for video \(video.id ?? "")")
@@ -58,8 +60,15 @@ public struct FeedView: View {
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .onAppear {
-                                videoFeedVM.onVideoAppear(at: index)
+                                if index == videoFeedVM.currentIndex {
+                                    videoFeedVM.onVideoAppear(at: index)
+                                }
                                 print("Video appeared: \(video.title) (type: \(video.videoType), userId: \(video.userId))")
+                            }
+                            .onChange(of: videoFeedVM.currentIndex) { newIndex in
+                                if index == newIndex {
+                                    videoFeedVM.onVideoAppear(at: index)
+                                }
                             }
                             .tag(index)
                         }
@@ -259,18 +268,29 @@ private struct FilterSheet: View {
 private struct VideoPlayerCard: View {
     @State private var currentVideo: Video
     let onPropertyTap: () -> Void
+
+    // New properties for active index tracking
+    let cardIndex: Int
+    @Binding var activeIndex: Int
     
+    // Store whether this is a property video at initialization
+    private let isPropertyVideo: Bool
+    private let initialPropertyId: String
+
     @StateObject private var playerVM = VideoPlayerViewModel()
     @EnvironmentObject private var chatViewModel: ChatViewModel
-    @State private var property: Property?
     @State private var isLoading = true
     @State private var showChatAlert = false
     @AppStorage("hasSeenChatTip") private var hasSeenChatTip = false
     @State private var showChatTip = false
-    
-    init(video: Video, onPropertyTap: @escaping () -> Void) {
+
+    init(video: Video, cardIndex: Int, activeIndex: Binding<Int>, onPropertyTap: @escaping () -> Void) {
         self.onPropertyTap = onPropertyTap
+        self.cardIndex = cardIndex
+        self._activeIndex = activeIndex
         _currentVideo = State(initialValue: video)
+        self.isPropertyVideo = video.videoType == .property
+        self.initialPropertyId = video.propertyId ?? ""
     }
     
     private func refreshVideo() {
@@ -389,25 +409,9 @@ private struct VideoPlayerCard: View {
                             Text(currentVideo.title)
                                 .font(.headline)
                             
-                            if currentVideo.videoType == .property,
-                               let propertyId = currentVideo.propertyId,
-                               !propertyId.isEmpty {
-                                if let prop = property {
-                                    HStack {
-                                        Text(formatPrice(prop.price, type: prop.type))
-                                            .font(.subheadline)
-                                        Spacer()
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "bed.double.fill")
-                                            Text("\(prop.bedrooms)")
-                                            Image(systemName: "drop.fill")
-                                            Text(String(format: "%.1f", prop.bathrooms))
-                                        }
-                                        .font(.caption)
-                                    }
-                                    Text(currentVideo.description)
-                                        .font(.subheadline)
-                                }
+                            if isPropertyVideo && !initialPropertyId.isEmpty {
+                                Text(currentVideo.description)
+                                    .font(.subheadline)
                                 
                                 Button {
                                     onPropertyTap()
@@ -425,14 +429,11 @@ private struct VideoPlayerCard: View {
                             }
                         }
                         .padding()
-                        .frame(maxWidth: .infinity * 0.8, alignment: .leading)
+                        .frame(width: geometry.size.width * 0.8, alignment: .leading)
                         
                         // Right side - Action buttons
                         VStack(spacing: 20) {
-                            if currentVideo.videoType == .property,
-                               let propertyId = currentVideo.propertyId,
-                               !propertyId.isEmpty,
-                               currentVideo.userId != Auth.auth().currentUser?.uid {
+                            if isPropertyVideo && !initialPropertyId.isEmpty && currentVideo.userId != Auth.auth().currentUser?.uid {
                                 Button {
                                     showChatAlert = true
                                     hasSeenChatTip = true
@@ -496,15 +497,10 @@ private struct VideoPlayerCard: View {
             }
         }
         .onAppear {
-            refreshVideo()
-            loadVideo()
-            if currentVideo.videoType == .property {
-                loadProperty()
+            if isLoading {
+                loadVideo()
             }
             playerVM.setOverlayVisible(false)
-        }
-        .onDisappear {
-            playerVM.pause()
         }
         .onChange(of: showChatAlert) { newValue in
             playerVM.setOverlayVisible(newValue)
@@ -512,6 +508,11 @@ private struct VideoPlayerCard: View {
         .onReceive(NotificationCenter.default.publisher(for: .mainFeedOverlayVisibilityChanged)) { notification in
             if let isVisible = notification.userInfo?["isVisible"] as? Bool {
                 playerVM.setOverlayVisible(isVisible)
+            }
+        }
+        .onChange(of: activeIndex) { newValue in
+            if newValue != cardIndex {
+                playerVM.pause()
             }
         }
         .alert(isPresented: $showChatAlert) {
@@ -538,41 +539,6 @@ private struct VideoPlayerCard: View {
                 }
                 isLoading = false
             }
-        }
-    }
-    
-    private func loadProperty() {
-        guard let propertyId = currentVideo.propertyId, !propertyId.isEmpty else { 
-            property = nil
-            return 
-        }
-        
-        Task {
-            do {
-                let db = Firestore.firestore()
-                let docRef = db.collection("properties").document(propertyId)
-                property = try await docRef.getDocument(as: Property.self)
-            } catch {
-                print("Error loading property: \(error)")
-                property = nil
-            }
-        }
-    }
-    
-    private func formatPrice(_ price: Double, type: String) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "en_US")
-        
-        let formattedPrice = formatter.string(from: NSNumber(value: price)) ?? "$0"
-        
-        switch type {
-        case "Vacation Rental":
-            return "\(formattedPrice)/night"
-        case "Room (Rent)", "Property (Rent)":
-            return "\(formattedPrice)/month"
-        default:
-            return formattedPrice
         }
     }
     

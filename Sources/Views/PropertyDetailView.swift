@@ -80,14 +80,12 @@ public struct PropertyDetailView: View {
                         .foregroundColor(.secondary)
                     
                     // Amenities
-                    if let amenities = property.amenities {
+                    if let amenities = property.amenities, !amenities.isEmpty {
                         Text("Amenities")
                             .font(.headline)
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ForEach(Array(amenities.keys.sorted().enumerated()), id: \.element) { index, amenity in
-                                if amenities[amenity] ?? false {
-                                    AmenityView(name: amenity)
-                                }
+                            ForEach(appViewModel.propertyViewModel.sortedAmenities(for: property), id: \ .self) { amenity in
+                                AmenityView(name: amenity)
                             }
                         }
                     }

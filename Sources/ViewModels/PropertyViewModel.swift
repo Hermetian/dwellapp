@@ -429,4 +429,18 @@ public final class PropertyViewModel: ObservableObject {
             throw error
         }
     }
+    
+    public func sortedAmenities(for property: Property) -> [String] {
+        guard let amenities = property.amenities else { return [] }
+        return amenities.keys.sorted().filter { amenities[$0] ?? false }
+    }
+    
+    public func sortedProperties(forUser userId: String) -> [Property] {
+        return properties.filter { $0.userId == userId }
+                         .sorted { $0.title < $1.title }
+    }
+    
+    deinit {
+        cancellables.removeAll()
+    }
 } 

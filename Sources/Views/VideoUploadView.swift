@@ -219,8 +219,10 @@ private struct PropertyPickerView: View {
     }
     
     private var filteredProperties: [Property] {
-        let currentUserId = appViewModel.authViewModel.currentUser?.id ?? ""
-        return appViewModel.propertyViewModel.properties.filter { $0.userId == currentUserId }
+        if let userId = appViewModel.authViewModel.currentUser?.id {
+            return appViewModel.propertyViewModel.sortedProperties(forUser: userId)
+        }
+        return []
     }
     
     var body: some View {

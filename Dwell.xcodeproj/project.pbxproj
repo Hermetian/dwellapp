@@ -42,6 +42,7 @@
 		39B37D3040B3F0A900C1F784 /* Core_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9FC0538A8BB344E1D68846D /* Core_iOS.framework */; };
 		3C9A6ED94385078C4D1562BD /* PropertyRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCA750307709995AC4D3A1D /* PropertyRowView.swift */; };
 		3D76CA0A9244DD60FE9C0F9D /* ForgotPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9957D359F347E8CF2B572E1D /* ForgotPasswordView.swift */; };
+		3F4B8CCA6DB7ACDC284AD24D /* AIVideoDescriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0BDDFADD9737E53C5D31C8 /* AIVideoDescriptionView.swift */; };
 		3F63C77CC4F312F004A897BF /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AF25B96B9C8F5EA8102BDD /* SignUpView.swift */; };
 		4262BE89486243E9DF79EFBE /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220E88C745CA999D864871A9 /* FilterView.swift */; };
 		4406B8BAEC83ADBADB95FEFE /* ChatChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF9A6EA4A79498B9E24916DC /* ChatChannel.swift */; };
@@ -91,6 +92,7 @@
 		8A4150A3822EEC9530DAECC1 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = C76A9346710659F40B5CD95A /* User.swift */; };
 		8B0428A4B426F2B1FCF7835A /* MessagingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45CB3F0ED998C2E3A1EDC433 /* MessagingView.swift */; };
 		8C4388FAA0AF626A66E3ABD8 /* Core_macOS.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4BBB444A6F9018C414429894 /* Core_macOS.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		9004E323B2CC781986A53949 /* AIVideoDescriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0BDDFADD9737E53C5D31C8 /* AIVideoDescriptionView.swift */; };
 		90AD63168A861BD9A352CFAD /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FD006204D1A5845C052C90 /* AuthViewModel.swift */; };
 		90D681177C5E4C4E155E7A1E /* Core_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4BBB444A6F9018C414429894 /* Core_macOS.framework */; };
 		96FFB97FBE49749787914C91 /* EmailLinkSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251E564A2FD1EE8E25A27F77 /* EmailLinkSignInView.swift */; };
@@ -310,6 +312,7 @@
 		5056B2623ABA832E6BE31A76 /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
 		51B30E9A03A4ACD393377C87 /* VideoStoryboardEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoStoryboardEditor.swift; sourceTree = "<group>"; };
 		57B65677E068DACB54A4C1AC /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		5C0BDDFADD9737E53C5D31C8 /* AIVideoDescriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIVideoDescriptionView.swift; sourceTree = "<group>"; };
 		5FCA750307709995AC4D3A1D /* PropertyRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyRowView.swift; sourceTree = "<group>"; };
 		6C3E0326AA95633E25E8F4F7 /* Dwell_macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dwell_macOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6DB5C50FC13AA5B85D4BE073 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
@@ -445,6 +448,7 @@
 			children = (
 				0B435672685F2CC3212BA2C4 /* AIAssistedInteractiveEditingView.swift */,
 				B3A520F952AE9F3D9527AEC3 /* AIContentSuggestionView.swift */,
+				5C0BDDFADD9737E53C5D31C8 /* AIVideoDescriptionView.swift */,
 				AFCE76A4FB1DC06FAEB29403 /* ClipTrimControls.swift */,
 				314D99D2D65AFAF8AD6D1CE6 /* FilterControl.swift */,
 				8138B7F391D7AB97BCC1FD9F /* LinkVideoView.swift */,
@@ -803,7 +807,6 @@
 			mainGroup = E13967D8EB05F9F7240CBE59;
 			packageReferences = (
 				E9BF24A62B4CFC20F135E85B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-				0F78089903544334430ECE94 /* XCRemoteSwiftPackageReference "grpc-swift" */,
 			);
 			projectDirPath = "";
 			projectRoot = "";
@@ -852,6 +855,7 @@
 			files = (
 				E6EBFF5459FE30583886DCEC /* AIAssistedInteractiveEditingView.swift in Sources */,
 				7556B4743EBF113713B288D1 /* AIContentSuggestionView.swift in Sources */,
+				9004E323B2CC781986A53949 /* AIVideoDescriptionView.swift in Sources */,
 				6B181E76FB1B45744C83B723 /* AuthView.swift in Sources */,
 				2E834AC9F08A27EC205B62C8 /* ChatListView.swift in Sources */,
 				837DF658F61AF054DE197B24 /* ChatRoomView.swift in Sources */,
@@ -935,6 +939,7 @@
 			files = (
 				57A80F6E389D428FB617D46A /* AIAssistedInteractiveEditingView.swift in Sources */,
 				0BDF091E87D028DFF8C9C754 /* AIContentSuggestionView.swift in Sources */,
+				3F4B8CCA6DB7ACDC284AD24D /* AIVideoDescriptionView.swift in Sources */,
 				EF17D2D5E60CA420CA9BF636 /* AuthView.swift in Sources */,
 				C25A81061244EC1891329396 /* ChatListView.swift in Sources */,
 				476F8A16FF2A643DF1235102 /* ChatRoomView.swift in Sources */,
@@ -1760,14 +1765,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		0F78089903544334430ECE94 /* XCRemoteSwiftPackageReference "grpc-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/grpc/grpc-swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.14.0;
-			};
-		};
 		E9BF24A62B4CFC20F135E85B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";

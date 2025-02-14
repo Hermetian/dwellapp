@@ -11,6 +11,19 @@ public final class VideoViewModel: ObservableObject {
     @Published public var error: Error?
     @Published public var currentPage = 0
     @Published public var hasMoreVideos = true
+    @Published public var filteredVideos: [Video] = []
+    @Published public var aiProcessingVideoId: String?
+    @Published public var aiProcessedResults: [String: (title: String, description: String, amenities: [String])] = [:]
+    
+    public var currentUserId: String? {
+        didSet {
+            if let userId = currentUserId {
+                updateFilteredVideos(userId: userId)
+            } else {
+                filteredVideos = []
+            }
+        }
+    }
     
     private var databaseService: DatabaseService
     private var storageService: StorageService
@@ -71,10 +84,19 @@ public final class VideoViewModel: ObservableObject {
                 videos.append(contentsOf: newVideos)
                 lastVideoId = newVideos.last?.id
             }
+            
+            if let userId = self.currentUserId {
+                updateFilteredVideos(userId: userId)
+            }
         } catch {
             self.error = error
             throw error
         }
+    }
+    
+    private func updateFilteredVideos(userId: String) {
+        self.filteredVideos = videos.filter { $0.userId == userId }
+                                 .sorted(by: { $0.uploadDate > $1.uploadDate })
     }
     
     public func uploadVideo(url: URL, propertyId: String, title: String, description: String, userId: String) async throws -> String {
@@ -205,5 +227,29 @@ public final class VideoViewModel: ObservableObject {
                 )
                 .store(in: &cancellables)
         }
+    }
+    
+    public func processVideoWithAI(video: Video) async throws {
+        guard let videoId = video.id else {
+            print("No video ID available")
+            return
+        }
+        
+        guard let url = URL(string: video.videoUrl) else {
+            print("Invalid video URL")
+            return
+        }
+        
+        aiProcessingVideoId = videoId
+        
+        let aiService = try AIAssistedEditorService(videoService: videoService)
+        let suggestions = try await aiService.getContentSuggestions(for: url, property: nil)
+        
+        aiProcessedResults[videoId] = suggestions
+        aiProcessingVideoId = nil
+    }
+    
+    deinit {
+        cancellables.removeAll()
     }
 } 

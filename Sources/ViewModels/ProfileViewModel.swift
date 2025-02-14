@@ -163,4 +163,8 @@ public class ProfileViewModel: ObservableObject {
         
         isLoading = false
     }
+    
+    deinit {
+        cancellables.removeAll()
+    }
 } 

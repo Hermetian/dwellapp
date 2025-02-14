@@ -115,7 +115,8 @@ public struct ManageVideosView: View {
                     onDelete: {
                         videoToDelete = video
                         showDeleteConfirmation = true
-                    }
+                    },
+                    viewModel: viewModel
                 )
                 .onAppear {
                     if video.id == viewModel.videos.last?.id && !viewModel.isLoading && viewModel.hasMoreVideos {
@@ -165,11 +166,41 @@ private struct VideoRowView: View {
     let onEdit: () -> Void
     let onRemix: () -> Void
     let onDelete: () -> Void
+    @ObservedObject var viewModel: VideoViewModel
+    @State private var showAIDescription = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(video.title)
-                .font(.headline)
+            HStack {
+                Text(video.title)
+                    .font(.headline)
+                Spacer()
+                Button {
+                    if let videoId = video.id, viewModel.aiProcessedResults[videoId] != nil {
+                        showAIDescription = true
+                    } else {
+                        Task {
+                            try? await viewModel.processVideoWithAI(video: video)
+                            showAIDescription = true
+                        }
+                    }
+                } label: {
+                    if let videoId = video.id, viewModel.aiProcessingVideoId == videoId {
+                        ProgressView()
+                            .tint(.purple)
+                    } else {
+                        Text("Describe with AI")
+                            .font(.caption)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.purple)
+                            .foregroundColor(.white)
+                            .cornerRadius(16)
+                    }
+                }
+                .disabled(video.id.map { viewModel.aiProcessingVideoId == $0 } ?? false)
+            }
+            
             Text(video.description)
                 .font(.subheadline)
                 .foregroundColor(.gray)
@@ -220,5 +251,10 @@ private struct VideoRowView: View {
             .padding(.top, 4)
         }
         .padding(.vertical, 4)
+        .sheet(isPresented: $showAIDescription) {
+            if let videoId = video.id, let suggestions = viewModel.aiProcessedResults[videoId] {
+                AIVideoDescriptionView(video: video, suggestions: suggestions)
+            }
+        }
     }
 } 

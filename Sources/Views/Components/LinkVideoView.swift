@@ -15,7 +15,7 @@ struct LinkVideoView: View {
     var body: some View {
         NavigationView {
             List {
-                ForEach(appViewModel.videoViewModel.videos.sorted(by: { $0.uploadDate > $1.uploadDate })) { video in
+                ForEach(appViewModel.videoViewModel.filteredVideos) { video in
                     Button {
                         if video.propertyId != nil {
                             selectedVideo = video
@@ -63,6 +63,9 @@ struct LinkVideoView: View {
                         dismiss()
                     }
                 }
+            }
+            .onAppear {
+                appViewModel.videoViewModel.currentUserId = appViewModel.authViewModel.currentUser?.id
             }
         }
         .alert("Video Already Linked", isPresented: $showUnlinkAlert) {

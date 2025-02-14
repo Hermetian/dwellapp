@@ -952,6 +952,7 @@ class VideoStoryboardEditorViewModel: ObservableObject {
 public struct ExistingVideosView: View {
     let onSelect: (Video) -> Void
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var appViewModel: AppViewModel
     @StateObject private var viewModel: VideoViewModel
     @State private var isLoading = false
     @State private var showError = false
@@ -1017,7 +1018,11 @@ public struct ExistingVideosView: View {
             .task {
                 isLoading = true
                 do {
-                    try await viewModel.loadVideos()
+                    if let currentUserId = appViewModel.authViewModel.currentUser?.id {
+                        try await viewModel.loadVideos(userId: currentUserId)
+                    } else {
+                        try await viewModel.loadVideos()
+                    }
                 } catch {
                     errorMessage = error.localizedDescription
                     showError = true
