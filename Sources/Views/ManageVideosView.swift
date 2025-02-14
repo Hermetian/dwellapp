@@ -65,6 +65,13 @@ public struct ManageVideosView: View {
                     }
                 }
             }
+            .onChange(of: showEditVideo) { isVisible in
+                NotificationCenter.default.post(
+                    name: .mainFeedOverlayVisibilityChanged,
+                    object: nil,
+                    userInfo: ["isVisible": isVisible]
+                )
+            }
             .sheet(isPresented: $showStoryboardEditor) {
                 if let video = selectedVideo {
                     VideoStoryboardEditor(initialVideo: video) {
@@ -81,6 +88,13 @@ public struct ManageVideosView: View {
                         }
                     }
                 }
+            }
+            .onChange(of: showStoryboardEditor) { isVisible in
+                NotificationCenter.default.post(
+                    name: .mainFeedOverlayVisibilityChanged,
+                    object: nil,
+                    userInfo: ["isVisible": isVisible]
+                )
             }
         }
     }

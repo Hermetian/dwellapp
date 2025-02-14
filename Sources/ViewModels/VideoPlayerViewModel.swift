@@ -41,6 +41,8 @@ public class VideoPlayerViewModel: ObservableObject {
     @Published public var isLoading = false
     @Published public var error: Error?
     @Published public var isMuted = false
+    @Published public var isOverlayVisible = false
+    private var wasPlayingBeforeOverlay = false  // Track previous playing state
     
     #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     @Published public var thumbnailImage: UIImage?
@@ -84,9 +86,15 @@ public class VideoPlayerViewModel: ObservableObject {
         player.automaticallyWaitsToMinimizeStalling = true
         player.volume = 1.0
         
+        // Get video duration
+        if let duration = try? await asset.load(.duration) {
+            self.duration = duration.seconds
+        }
+        
         // Add periodic time observer
-        resources.timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] _ in
+        resources.timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main) { [weak self] time in
             Task { @MainActor [weak self] in
+                self?.currentTime = time.seconds
                 self?.handleTimeUpdate(for: player)
             }
         }
@@ -99,22 +107,31 @@ public class VideoPlayerViewModel: ObservableObject {
         }
         
         setPlayer(player)
-        player.play()
+        if !isOverlayVisible {
+            player.play()
+            isPlaying = true
+        }
     }
     
     public func play() {
+        guard !isOverlayVisible else { return }  // Don't play if overlay is visible
         resources.player?.play()
+        isPlaying = true
     }
     
     public func pause() {
         resources.player?.pause()
+        isPlaying = false
     }
     
-    public func togglePlayback() {
-        if resources.player?.timeControlStatus == .playing {
+    public func setOverlayVisible(_ visible: Bool) {
+        isOverlayVisible = visible
+        if visible {
+            wasPlayingBeforeOverlay = isPlaying  // Save the state
             pause()
-        } else {
+        } else if wasPlayingBeforeOverlay {  // Only resume if it was playing before
             play()
+            wasPlayingBeforeOverlay = false  // Reset the state
         }
     }
     
@@ -125,16 +142,22 @@ public class VideoPlayerViewModel: ObservableObject {
         if currentTime >= duration {
             // Video finished, loop it
             player.seek(to: .zero)
-            player.play()
+            if !isOverlayVisible {  // Only play if no overlay is visible
+                player.play()
+            }
         }
     }
     
     private func handleStatusChange(for item: AVPlayerItem) {
         switch item.status {
         case .readyToPlay:
-            resources.player?.play()
+            if !isOverlayVisible {  // Only play if no overlay is visible
+                resources.player?.play()
+                isPlaying = true
+            }
         case .failed:
             print("Failed to load video: \(String(describing: item.error))")
+            isPlaying = false
         case .unknown:
             break
         @unknown default:
@@ -201,8 +224,21 @@ public class VideoPlayerViewModel: ObservableObject {
         guard let player = resources.player else {
             throw NSError(domain: "VideoPlayerViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Player not initialized"])
         }
-        let cmTime = CMTime(seconds: time, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        player.seek(to: cmTime)
+        
+        let targetTime = max(0, min(time, duration))
+        let cmTime = CMTime(seconds: targetTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        
+        // Pause during seek to prevent visual glitches
+        let wasPlaying = isPlaying
+        player.pause()
+        
+        player.seek(to: cmTime) { [weak self] finished in
+            guard let self = self else { return }
+            if finished && wasPlaying && !self.isOverlayVisible {
+                player.play()
+                self.isPlaying = true
+            }
+        }
     }
     
     public func toggleMute() throws {

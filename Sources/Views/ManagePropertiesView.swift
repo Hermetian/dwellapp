@@ -92,6 +92,13 @@ struct ManagePropertiesView: View {
                 }
             }
         }
+        .onChange(of: showEditSheet) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
+        }
         .overlay {
             if isLoading {
                 ProgressView()
@@ -125,6 +132,13 @@ struct ManagePropertiesView: View {
             if let property = propertyToDelete {
                 Text("Are you sure you want to delete '\(property.title)'? This action cannot be undone.")
             }
+        }
+        .onChange(of: showDeleteAlert) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
         }
     }
     

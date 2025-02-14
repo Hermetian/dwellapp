@@ -187,6 +187,41 @@ public struct MainTabView: View {
         .sheet(isPresented: $showManageProperties) {
             ManagePropertiesView()
         }
+        .onChange(of: showFilters) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
+        }
+        .onChange(of: showNewVideo) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
+        }
+        .onChange(of: showNewProperty) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
+        }
+        .onChange(of: showManageVideos) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
+        }
+        .onChange(of: showManageProperties) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
+        }
         .environmentObject(chatViewModel)
     }
     

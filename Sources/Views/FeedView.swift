@@ -81,6 +81,20 @@ public struct FeedView: View {
         .onAppear {
             setupFilterSubscription()
         }
+        .onChange(of: showFilters) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
+        }
+        .onChange(of: showPropertyDetails) { isVisible in
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isVisible]
+            )
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
@@ -250,8 +264,6 @@ private struct VideoPlayerCard: View {
     @EnvironmentObject private var chatViewModel: ChatViewModel
     @State private var property: Property?
     @State private var isLoading = true
-    @State private var showPreview = false
-    @State private var previewPlayer: AVPlayer?
     @State private var showChatAlert = false
     @AppStorage("hasSeenChatTip") private var hasSeenChatTip = false
     @State private var showChatTip = false
@@ -283,9 +295,88 @@ private struct VideoPlayerCard: View {
                 
                 // Video player
                 if let player = playerVM.player {
-                    VideoPlayer(player: player)
-                        .disabled(true)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ZStack {
+                        VideoPlayer(player: player)
+                            .disabled(true)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        
+                        // Video Controls Overlay
+                        VStack {
+                            Spacer()
+                            
+                            // Progress bar
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    // Background track
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.3))
+                                        .frame(height: 4)
+                                    
+                                    // Progress track
+                                    Rectangle()
+                                        .fill(Color.white)
+                                        .frame(width: geometry.size.width * (playerVM.currentTime / max(playerVM.duration, 1)), height: 4)
+                                }
+                                .gesture(
+                                    DragGesture(minimumDistance: 0)
+                                        .onChanged { value in
+                                            let percentage = value.location.x / geometry.size.width
+                                            let time = max(0, min(playerVM.duration * percentage, playerVM.duration))
+                                            try? playerVM.seek(to: time)
+                                        }
+                                )
+                            }
+                            .frame(height: 30)
+                            .padding(.horizontal)
+                            
+                            // Control buttons
+                            HStack(spacing: 40) {
+                                // Skip backward
+                                Button {
+                                    try? playerVM.seek(to: max(0, playerVM.currentTime - 10))
+                                } label: {
+                                    Image(systemName: "gobackward.10")
+                                        .font(.system(size: 35))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                
+                                // Play/Pause
+                                Button {
+                                    if playerVM.isPlaying {
+                                        playerVM.pause()
+                                    } else {
+                                        playerVM.play()
+                                    }
+                                } label: {
+                                    Image(systemName: playerVM.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                
+                                // Skip forward
+                                Button {
+                                    try? playerVM.seek(to: min(playerVM.duration, playerVM.currentTime + 10))
+                                } label: {
+                                    Image(systemName: "goforward.10")
+                                        .font(.system(size: 35))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.bottom, 20)
+                            
+                            // Time labels
+                            HStack {
+                                Text(formatTime(playerVM.currentTime))
+                                Spacer()
+                                Text(formatTime(playerVM.duration))
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(.horizontal)
+                        }
+                        .padding(.bottom, 100)  // Add padding to avoid overlap with other controls
+                    }
                 }
                 
                 // Controls overlay
@@ -338,21 +429,6 @@ private struct VideoPlayerCard: View {
                         
                         // Right side - Action buttons
                         VStack(spacing: 20) {
-                            Button {
-                                print("Preview button pressed for video: \(currentVideo.title)")
-                                showPreview = true
-                            } label: {
-                                VStack {
-                                    Image(systemName: "play.circle.fill")
-                                        .font(.title)
-                                    Text("Preview")
-                                        .font(.caption)
-                                }
-                                .frame(width: 60, height: 60)
-                                .background(Color.white.opacity(0.2))
-                                .cornerRadius(8)
-                            }
-                            
                             if currentVideo.videoType == .property,
                                let propertyId = currentVideo.propertyId,
                                !propertyId.isEmpty,
@@ -425,35 +501,17 @@ private struct VideoPlayerCard: View {
             if currentVideo.videoType == .property {
                 loadProperty()
             }
+            playerVM.setOverlayVisible(false)
         }
         .onDisappear {
             playerVM.pause()
-            previewPlayer?.pause()
-            previewPlayer = nil
         }
-        .sheet(isPresented: $showPreview) {
-            NavigationView {
-                Group {
-                    if let url = URL(string: currentVideo.videoUrl) {
-                        VideoPlayer(player: AVPlayer(url: url))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .edgesIgnoringSafeArea(.all)
-                            .onAppear {
-                                previewPlayer = AVPlayer(url: url)
-                                previewPlayer?.play()
-                            }
-                    }
-                }
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") {
-                            previewPlayer?.pause()
-                            previewPlayer = nil
-                            showPreview = false
-                        }
-                    }
-                }
+        .onChange(of: showChatAlert) { newValue in
+            playerVM.setOverlayVisible(newValue)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mainFeedOverlayVisibilityChanged)) { notification in
+            if let isVisible = notification.userInfo?["isVisible"] as? Bool {
+                playerVM.setOverlayVisible(isVisible)
             }
         }
         .alert(isPresented: $showChatAlert) {
@@ -475,6 +533,9 @@ private struct VideoPlayerCard: View {
             isLoading = true
             if let url = URL(string: currentVideo.videoUrl) {
                 await playerVM.setVideo(url: url)
+                if playerVM.isPlaying {
+                    playerVM.play()
+                }
                 isLoading = false
             }
         }
@@ -514,6 +575,12 @@ private struct VideoPlayerCard: View {
             return formattedPrice
         }
     }
+    
+    private func formatTime(_ timeInSeconds: TimeInterval) -> String {
+        let minutes = Int(timeInSeconds) / 60
+        let seconds = Int(timeInSeconds) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
 }
 
 #Preview {
@@ -521,4 +588,9 @@ private struct VideoPlayerCard: View {
         FeedView()
             .environmentObject(AppViewModel())
     }
+}
+
+// Add extension for the notification name
+extension Notification.Name {
+    static let mainFeedOverlayVisibilityChanged = Notification.Name("mainFeedOverlayVisibilityChanged")
 } 
