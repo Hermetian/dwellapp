@@ -37,7 +37,7 @@ public final class VideoViewModel: ObservableObject {
         }
     }
     
-    public func loadVideos() async throws {
+    public func loadVideos(userId: String? = nil) async throws {
         guard !isLoading else { return }
         isLoading = true
         error = nil
@@ -48,7 +48,7 @@ public final class VideoViewModel: ObservableObject {
         
         do {
             let newVideos = try await withCheckedThrowingContinuation { continuation in
-                databaseService.getVideosStream(limit: pageSize, lastVideoId: lastVideoId)
+                databaseService.getVideosStream(limit: pageSize, lastVideoId: lastVideoId, userId: userId)
                     .sink(
                         receiveCompletion: { completion in
                             switch completion {
@@ -187,9 +187,9 @@ public final class VideoViewModel: ObservableObject {
         try await databaseService.getVideo(id: id)
     }
     
-    public func getPropertyVideos(propertyId: String) async throws -> [Video] {
+    public func getPropertyVideos(propertyId: String, userId: String? = nil) async throws -> [Video] {
         try await withCheckedThrowingContinuation { continuation in
-            databaseService.getPropertyVideos(propertyId: propertyId)
+            databaseService.getPropertyVideos(propertyId: propertyId, userId: userId)
                 .sink(
                     receiveCompletion: { completion in
                         switch completion {

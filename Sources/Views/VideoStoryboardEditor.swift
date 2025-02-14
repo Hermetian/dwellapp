@@ -378,6 +378,7 @@ private struct ClipActionButtons: View {
 public struct VideoStoryboardEditor: View {
     @StateObject private var viewModel: VideoStoryboardEditorViewModel
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appViewModel: AppViewModel
     @State private var showExistingVideos: Bool = false
     @State private var showPhotoPicker: Bool = false
     @State private var selectedItem: PhotosPickerItem?
@@ -486,7 +487,7 @@ public struct VideoStoryboardEditor: View {
                 if let url = viewModel.stitchedURL {
                     VideoUploadView(
                         videoService: viewModel.videoService,
-                        userId: "dummyUser",
+                        userId: appViewModel.authViewModel.currentUser?.id ?? "",
                         initialVideoURL: url
                     ) {
                         viewModel.finalizeUpload()
@@ -499,12 +500,14 @@ public struct VideoStoryboardEditor: View {
                 Text(viewModel.errorMessage)
             }
         }
+        .onAppear {
+            viewModel.appViewModel = appViewModel
+        }
         .task {
             // Load initial clip if provided
             do {
                 try await viewModel.loadInitialClip()
-        } catch {
-                // Handle error appropriately
+            } catch {
                 viewModel.errorMessage = error.localizedDescription
                 viewModel.showError = true
             }
@@ -555,9 +558,12 @@ class VideoStoryboardEditorViewModel: ObservableObject {
     
     let initialVideo: Video?
     let onSave: () -> Void
-    
     let videoService = VideoService()
     
+    // Changed from let to var and made optional so that it can be assigned later
+    var appViewModel: AppViewModel?
+    
+    // Updated initializer: removed appViewModel parameter
     init(clips: [VideoService.VideoClip], initialVideo: Video? = nil, onSave: @escaping () -> Void) {
         self.clips = clips
         self.initialVideo = initialVideo
@@ -582,10 +588,18 @@ class VideoStoryboardEditorViewModel: ObservableObject {
         if let initialVideo = initialVideo, let url = URL(string: initialVideo.videoUrl) {
             let rawDuration = try await videoService.getVideoDuration(url: url)
             let duration = max(rawDuration, 0.1)
-            let clip = try await videoService.createClip(from: url, startTime: .zero, duration: CMTime(seconds: duration, preferredTimescale: 600))
-            self.clips.append(clip)
-            self.originalDuration = duration
-            self.selectClip(0)
+            let clip = try await videoService.createClip(
+                from: url,
+                startTime: .zero,
+                duration: CMTime(seconds: duration, preferredTimescale: 600)
+            )
+            
+            await MainActor.run {
+                self.clips = [clip]
+                self.originalDuration = duration
+                self.selectClip(0)
+            }
+            
             try await updateStitchedPreview()
         }
     }
@@ -685,7 +699,7 @@ class VideoStoryboardEditorViewModel: ObservableObject {
                 description: descriptionToUpload,
                 videoType: .property,
                 propertyId: nil,
-                userId: "dummyUser"
+                userId: appViewModel?.authViewModel.currentUser?.id ?? ""
             )
             
             // Configure the AVPlayer to preview the saved video using its download URL

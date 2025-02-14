@@ -197,6 +197,31 @@ private struct PropertyPickerView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @Binding var selectedPropertyId: String
     @State private var isLoading = true
+    @State private var showEditSheet = false
+    @State private var editingVideos: [VideoItem] = []
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    private func initializeNewProperty() {
+        let currentUserId = appViewModel.authViewModel.currentUser?.id ?? ""
+        appViewModel.propertyViewModel.draftTitle = ""
+        appViewModel.propertyViewModel.draftDescription = ""
+        appViewModel.propertyViewModel.draftPrice = ""
+        appViewModel.propertyViewModel.draftAddress = ""
+        appViewModel.propertyViewModel.draftBedrooms = 1
+        appViewModel.propertyViewModel.draftBathrooms = 1
+        appViewModel.propertyViewModel.draftSquareFootage = ""
+        appViewModel.propertyViewModel.draftAvailableDate = Date()
+        appViewModel.propertyViewModel.draftSelectedVideos = []
+        appViewModel.propertyViewModel.draftSelectedAmenities = []
+        appViewModel.propertyViewModel.draftPropertyType = PropertyTypes.propertyRent.rawValue
+        appViewModel.propertyViewModel.currentUserId = currentUserId
+    }
+    
+    private var filteredProperties: [Property] {
+        let currentUserId = appViewModel.authViewModel.currentUser?.id ?? ""
+        return appViewModel.propertyViewModel.properties.filter { $0.userId == currentUserId }
+    }
     
     var body: some View {
         NavigationView {
@@ -204,17 +229,27 @@ private struct PropertyPickerView: View {
                 if isLoading {
                     ProgressView()
                 } else {
-                    List(appViewModel.propertyViewModel.properties) { property in
+                    List {
                         Button {
-                            selectedPropertyId = property.id ?? ""
-                            dismiss()
+                            initializeNewProperty()
+                            showEditSheet = true
                         } label: {
-                            VStack(alignment: .leading) {
-                                Text(property.title)
-                                    .font(.headline)
-                                Text(property.address)
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
+                            Label("Create New Property", systemImage: "plus.circle.fill")
+                                .foregroundColor(.blue)
+                        }
+                        
+                        ForEach(filteredProperties) { property in
+                            Button {
+                                selectedPropertyId = property.id ?? ""
+                                dismiss()
+                            } label: {
+                                VStack(alignment: .leading) {
+                                    Text(property.title)
+                                        .font(.headline)
+                                    Text(property.address)
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                }
                             }
                         }
                     }
@@ -237,6 +272,30 @@ private struct PropertyPickerView: View {
                     print("Error loading properties: \(error)")
                     isLoading = false
                 }
+            }
+            .sheet(isPresented: $showEditSheet) {
+                NavigationView {
+                    UploadPropertyView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showEditSheet = false
+                                }
+                            }
+                        }
+                        .onDisappear {
+                            // Check if a property was created and select it
+                            if let newPropertyId = appViewModel.propertyViewModel.property?.id {
+                                selectedPropertyId = newPropertyId
+                                dismiss()
+                            }
+                        }
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
             }
         }
     }

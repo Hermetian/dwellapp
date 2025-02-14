@@ -133,7 +133,11 @@ struct ManagePropertiesView: View {
             isLoading = true
             editingVideos = []
             do {
-                let videos = try await appViewModel.videoViewModel.getPropertyVideos(propertyId: property.id ?? "")
+                let currentUserId = appViewModel.authViewModel.currentUser?.id
+                let videos = try await appViewModel.videoViewModel.getPropertyVideos(
+                    propertyId: property.id ?? "",
+                    userId: currentUserId
+                )
                 editingVideos = videos.compactMap { video in
                     guard let url = URL(string: video.videoUrl) else { return nil }
                     return VideoItem(

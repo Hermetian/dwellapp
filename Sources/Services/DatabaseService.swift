@@ -323,10 +323,14 @@ public class DatabaseService: ObservableObject {
     
     // MARK: - Video Methods
     
-    public func getVideosStream(limit: Int = 10, lastVideoId: String? = nil) -> AnyPublisher<[Video], Error> {
-        let query = db.collection("videos")
+    public func getVideosStream(limit: Int = 10, lastVideoId: String? = nil, userId: String? = nil) -> AnyPublisher<[Video], Error> {
+        var query = db.collection("videos")
             .order(by: "uploadDate", descending: true)
             .limit(to: limit)
+        
+        if let userId = userId {
+            query = query.whereField("userId", isEqualTo: userId)
+        }
         
         if let lastId = lastVideoId {
             return Future { [weak self] promise in
@@ -396,31 +400,36 @@ public class DatabaseService: ObservableObject {
         .eraseToAnyPublisher()
     }
     
-    public func getPropertyVideos(propertyId: String) -> AnyPublisher<[Video], Error> {
+    public func getPropertyVideos(propertyId: String, userId: String? = nil) -> AnyPublisher<[Video], Error> {
         Future { [weak self] promise in
             guard let self = self else { return }
             
-            let listener = self.db.collection("videos")
+            var query = self.db.collection("videos")
                 .whereField("propertyId", isEqualTo: propertyId)
                 .order(by: "uploadDate", descending: true)
-                .addSnapshotListener { querySnapshot, error in
-                    if let error = error {
-                        promise(.failure(error))
-                        return
-                    }
-                    
-                    guard let documents = querySnapshot?.documents else {
-                        promise(.success([]))
-                        return
-                    }
-                    
-                    do {
-                        let videos = try documents.map { try $0.data(as: Video.self) }
-                        promise(.success(videos))
-                    } catch {
-                        promise(.failure(error))
-                    }
+            
+            if let userId = userId {
+                query = query.whereField("userId", isEqualTo: userId)
+            }
+            
+            let listener = query.addSnapshotListener { querySnapshot, error in
+                if let error = error {
+                    promise(.failure(error))
+                    return
                 }
+                
+                guard let documents = querySnapshot?.documents else {
+                    promise(.success([]))
+                    return
+                }
+                
+                do {
+                    let videos = try documents.map { try $0.data(as: Video.self) }
+                    promise(.success(videos))
+                } catch {
+                    promise(.failure(error))
+                }
+            }
             
             self.store(listener: listener, for: "property-videos-\(propertyId)")
         }

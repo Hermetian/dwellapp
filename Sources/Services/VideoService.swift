@@ -118,12 +118,16 @@ public class VideoService: ObservableObject {
         try await docRef.delete()
     }
     
-    public func getVideos(propertyId: String? = nil, limit: Int = 10, lastVideoId: String? = nil) async throws -> [Video] {
+    public func getVideos(propertyId: String? = nil, limit: Int = 10, lastVideoId: String? = nil, userId: String? = nil) async throws -> [Video] {
         var query = db.collection("videos")
             .order(by: "serverTimestamp", descending: true)
         
         if let propertyId = propertyId {
             query = query.whereField("propertyId", isEqualTo: propertyId)
+        }
+        
+        if let userId = userId {
+            query = query.whereField("userId", isEqualTo: userId)
         }
         
         if let lastId = lastVideoId {
