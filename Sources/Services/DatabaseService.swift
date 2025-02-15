@@ -146,81 +146,144 @@ public class DatabaseService: ObservableObject {
         let userRef = db.collection("users").document(userId)
         let propertyRef = db.collection("properties").document(propertyId)
         
+        // Get the current user document
+        let userDoc = try await userRef.getDocument()
+        
+        // If the user document doesn't exist or doesn't have favoriteListings, initialize it
+        if !userDoc.exists {
+            try await userRef.setData([
+                "favoriteListings": [],
+                "createdAt": FieldValue.serverTimestamp(),
+                "updatedAt": FieldValue.serverTimestamp()
+            ])
+        } else if (userDoc.data()?["favoriteListings"] as? [String]) == nil {
+            try await userRef.updateData([
+                "favoriteListings": [],
+                "updatedAt": FieldValue.serverTimestamp()
+            ])
+        }
+        
+        let currentFavorites = (try? userDoc.data(as: User.self))?.favoriteListings ?? []
+        
         if isFavorite {
-            batch.updateData([
-                "favoriteListings": FieldValue.arrayUnion([propertyId])
-            ], forDocument: userRef)
-            
-            batch.updateData([
-                "favoriteCount": FieldValue.increment(Int64(1))
-            ], forDocument: propertyRef)
+            // Only add to favorites and increment count if not already favorited
+            if !currentFavorites.contains(propertyId) {
+                batch.updateData([
+                    "favoriteListings": FieldValue.arrayUnion([propertyId]),
+                    "updatedAt": FieldValue.serverTimestamp()
+                ], forDocument: userRef)
+                
+                batch.updateData([
+                    "favoriteCount": FieldValue.increment(Int64(1))
+                ], forDocument: propertyRef)
+            }
         } else {
-            batch.updateData([
-                "favoriteListings": FieldValue.arrayRemove([propertyId])
-            ], forDocument: userRef)
-            
-            batch.updateData([
-                "favoriteCount": FieldValue.increment(Int64(-1))
-            ], forDocument: propertyRef)
+            // Only remove from favorites and decrement count if currently favorited
+            if currentFavorites.contains(propertyId) {
+                batch.updateData([
+                    "favoriteListings": FieldValue.arrayRemove([propertyId]),
+                    "updatedAt": FieldValue.serverTimestamp()
+                ], forDocument: userRef)
+                
+                batch.updateData([
+                    "favoriteCount": FieldValue.increment(Int64(-1))
+                ], forDocument: propertyRef)
+                
+                // Check for and delete empty chat
+                let chatQuery = db.collection("chatChannels")
+                    .whereField("propertyId", isEqualTo: propertyId)
+                    .whereField("buyerId", isEqualTo: userId)
+                
+                let chatDocs = try await chatQuery.getDocuments()
+                
+                for chatDoc in chatDocs.documents {
+                    // Check if chat is empty
+                    let messageQuery = db.collection("chatMessages")
+                        .whereField("channelId", isEqualTo: chatDoc.documentID)
+                        .limit(to: 1)
+                    
+                    let messageDocs = try await messageQuery.getDocuments()
+                    
+                    if messageDocs.documents.isEmpty {
+                        // Chat is empty, delete it
+                        batch.deleteDocument(chatDoc.reference)
+                    }
+                }
+            }
         }
         
         try await batch.commit()
+        
+        // Force a refresh of the favorites
+        _ = getUserFavorites(userId: userId)
     }
     
     @MainActor
     public func getUserFavorites(userId: String) -> AnyPublisher<[Property], Error> {
-        Future { [weak self] promise in
-            guard let self = self else { return }
-            
-            let listener = self.db.collection("users").document(userId)
-                .addSnapshotListener { documentSnapshot, error in
-                    if let error = error {
-                        promise(.failure(error))
-                        return
-                    }
-                    
-                    guard let document = documentSnapshot else {
-                        promise(.success([]))
-                        return
-                    }
-                    
-                    do {
-                        let user = try document.data(as: User.self)
-                        let favoriteIds = user.favoriteListings
-                        
-                        if favoriteIds.isEmpty {
-                            promise(.success([]))
-                            return
-                        }
-                        
-                        self.db.collection("properties")
-                            .whereField(FieldPath.documentID(), in: favoriteIds)
-                            .getDocuments { querySnapshot, error in
-                                if let error = error {
-                                    promise(.failure(error))
-                                    return
-                                }
-                                
-                                guard let documents = querySnapshot?.documents else {
-                                    promise(.success([]))
-                                    return
-                                }
-                                
-                                do {
-                                    let properties = try documents.map { try $0.data(as: Property.self) }
-                                    promise(.success(properties))
-                                } catch {
-                                    promise(.failure(error))
-                                }
-                            }
-                    } catch {
-                        promise(.failure(error))
-                    }
+        let subject = PassthroughSubject<[Property], Error>()
+        
+        let listener = db.collection("users").document(userId)
+            .addSnapshotListener { [weak self] documentSnapshot, error in
+                guard let self = self else { return }
+                
+                if let error = error {
+                    subject.send(completion: .failure(error))
+                    return
                 }
-            
-            self.store(listener: listener, for: "favorites-\(userId)")
-        }
-        .eraseToAnyPublisher()
+                
+                guard let document = documentSnapshot, document.exists else {
+                    subject.send([])
+                    return
+                }
+                
+                do {
+                    let user = try document.data(as: User.self)
+                    let favoriteIds = user.favoriteListings
+                    
+                    if favoriteIds.isEmpty {
+                        subject.send([])
+                        return
+                    }
+                    
+                    // Get all favorited properties
+                    self.db.collection("properties")
+                        .whereField(FieldPath.documentID(), in: favoriteIds)
+                        .getDocuments { querySnapshot, error in
+                            if let error = error {
+                                subject.send(completion: .failure(error))
+                                return
+                            }
+                            
+                            guard let documents = querySnapshot?.documents else {
+                                subject.send([])
+                                return
+                            }
+                            
+                            do {
+                                let properties = try documents.map { document -> Property in
+                                    var property = try document.data(as: Property.self)
+                                    property.id = document.documentID
+                                    return property
+                                }
+                                subject.send(properties)
+                            } catch {
+                                subject.send(completion: .failure(error))
+                            }
+                        }
+                } catch {
+                    subject.send(completion: .failure(error))
+                }
+            }
+        
+        store(listener: listener, for: "favorites-\(userId)")
+        return subject.eraseToAnyPublisher()
+    }
+    
+    @MainActor
+    public func isPropertyFavorited(userId: String, propertyId: String) async throws -> Bool {
+        let userDoc = try await db.collection("users").document(userId).getDocument()
+        let currentFavorites = (try? userDoc.data(as: User.self))?.favoriteListings ?? []
+        return currentFavorites.contains(propertyId)
     }
     
     // MARK: - Messages

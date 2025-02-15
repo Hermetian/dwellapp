@@ -20,6 +20,27 @@ public struct ChatListView: View {
         channel.otherUserName ?? (isChannelSeller(channel) ? "Buyer" : "Seller")
     }
     
+    private func isPropertyFavorited(_ propertyId: String) -> Bool {
+        appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == propertyId }
+    }
+    
+    private var sortedChannels: [ChatChannel] {
+        chatViewModel.channels.sorted { channel1, channel2 in
+            // First, sort by favorite status
+            let isFavorite1 = isPropertyFavorited(channel1.propertyId)
+            let isFavorite2 = isPropertyFavorited(channel2.propertyId)
+            
+            if isFavorite1 != isFavorite2 {
+                return isFavorite1
+            }
+            
+            // Then sort by timestamp
+            let date1 = channel1.lastMessageTimestamp ?? channel1.serverTimestamp?.dateValue() ?? Date.distantPast
+            let date2 = channel2.lastMessageTimestamp ?? channel2.serverTimestamp?.dateValue() ?? Date.distantPast
+            return date1 > date2
+        }
+    }
+    
     public var body: some View {
         NavigationView {
             Group {
@@ -39,7 +60,7 @@ public struct ChatListView: View {
                         print("ℹ️ ChatListView: No channels to display")
                     }
                 } else {
-                    List(chatViewModel.channels) { channel in
+                    List(sortedChannels) { channel in
                         NavigationLink(destination: ChatRoomView(channel: channel)) {
                             HStack {
                                 Circle()
@@ -63,11 +84,30 @@ public struct ChatListView: View {
                                 }
                                 .padding(.leading, 8)
                                 
-                                if !channel.isRead && channel.lastSenderId != appViewModel.authViewModel.currentUser?.id {
-                                    Spacer()
-                                    Circle()
-                                        .fill(Color.blue)
-                                        .frame(width: 10, height: 10)
+                                Spacer()
+                                
+                                HStack(spacing: 12) {
+                                    // Heart icon for favorite properties
+                                    Button {
+                                        if let userId = appViewModel.authViewModel.currentUser?.id {
+                                            Task {
+                                                try await appViewModel.propertyViewModel.toggleFavorite(
+                                                    propertyId: channel.propertyId,
+                                                    userId: userId
+                                                )
+                                            }
+                                        }
+                                    } label: {
+                                        Image(systemName: isPropertyFavorited(channel.propertyId) ? "heart.fill" : "heart")
+                                            .foregroundColor(isPropertyFavorited(channel.propertyId) ? .red : .gray)
+                                    }
+                                    
+                                    // Unread message indicator
+                                    if !channel.isRead && channel.lastSenderId != appViewModel.authViewModel.currentUser?.id {
+                                        Circle()
+                                            .fill(Color.blue)
+                                            .frame(width: 10, height: 10)
+                                    }
                                 }
                             }
                             .padding(.vertical, 8)

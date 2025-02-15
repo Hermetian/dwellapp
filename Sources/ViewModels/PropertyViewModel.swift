@@ -122,7 +122,8 @@ public final class PropertyViewModel: ObservableObject {
         error = nil
         
         do {
-            let isFavorite = favoriteProperties.contains { $0.id == propertyId }
+            // Get the current state from the database
+            let isFavorite = try await databaseService.isPropertyFavorited(userId: userId, propertyId: propertyId)
             let newFavoriteState = !isFavorite
             
             try await databaseService.togglePropertyFavorite(

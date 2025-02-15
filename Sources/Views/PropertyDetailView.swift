@@ -17,7 +17,8 @@ public struct PropertyDetailView: View {
     @State private var previewPlayer: AVPlayer?
     
     private var isFavorited: Bool {
-        appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == property.id }
+        guard let id = property.id else { return false }
+        return appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == id }
     }
     
     public var body: some View {
