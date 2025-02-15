@@ -281,6 +281,7 @@ private struct VideoPlayerCard: View {
     @State private var showChatAlert = false
     @AppStorage("hasSeenChatTip") private var hasSeenChatTip = false
     @State private var showChatTip = false
+    @State private var autoPaused: Bool = false
 
     init(video: Video, cardIndex: Int, activeIndex: Binding<Int>, viewPropertyDisabled: Bool, onPropertyTap: @escaping () -> Void) {
         self.onPropertyTap = onPropertyTap
@@ -512,7 +513,15 @@ private struct VideoPlayerCard: View {
         }
         .onChange(of: activeIndex) { newValue in
             if newValue != cardIndex {
-                playerVM.pause()
+                if playerVM.isPlaying {
+                    playerVM.pause()
+                    autoPaused = true
+                }
+            } else {
+                if autoPaused {
+                    playerVM.play()
+                    autoPaused = false
+                }
             }
         }
         .onChange(of: scenePhase) { phase in
