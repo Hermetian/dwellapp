@@ -533,6 +533,13 @@ private struct VideoPlayerCard: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime)) { notification in
+            if let currentItem = playerVM.player?.currentItem, notification.object as? AVPlayerItem == currentItem {
+                if activeIndex == cardIndex {
+                    activeIndex = cardIndex + 1
+                }
+            }
+        }
         .alert(isPresented: $showChatAlert) {
             Alert(
                 title: Text("Start Chat"),
