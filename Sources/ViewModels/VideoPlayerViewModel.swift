@@ -16,13 +16,11 @@ public class VideoPlayerViewModel: ObservableObject {
         var player: AVPlayer?
         var timeObserver: Any?
         var itemObserver: NSKeyValueObservation?
-        var orientationObserver: NSObjectProtocol?
         
-        init(player: AVPlayer? = nil, timeObserver: Any? = nil, itemObserver: NSKeyValueObservation? = nil, orientationObserver: NSObjectProtocol? = nil) {
+        init(player: AVPlayer? = nil, timeObserver: Any? = nil, itemObserver: NSKeyValueObservation? = nil) {
             self.player = player
             self.timeObserver = timeObserver
             self.itemObserver = itemObserver
-            self.orientationObserver = orientationObserver
         }
         
         func cleanup() {
@@ -30,14 +28,10 @@ public class VideoPlayerViewModel: ObservableObject {
                 player?.removeTimeObserver(timeObserver)
             }
             itemObserver?.invalidate()
-            if let orientationObserver = orientationObserver {
-                NotificationCenter.default.removeObserver(orientationObserver)
-            }
             player?.pause()
             player = nil
             timeObserver = nil
             itemObserver = nil
-            orientationObserver = nil
         }
     }
     
@@ -48,95 +42,37 @@ public class VideoPlayerViewModel: ObservableObject {
     @Published public var error: Error?
     @Published public var isMuted = false
     @Published public var isOverlayVisible = false
-    private var wasPlayingBeforeOverlay = false
-    private var wasPlayingBeforeBackground = false
+    private var wasPlayingBeforeOverlay = false  // Track previous playing state
     
     #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     @Published public var thumbnailImage: UIImage?
     #endif
     
+    // Hold all player resources in a nonisolated wrapper
     private let resources = PlayerResources()
     private var videoService: VideoService?
     private var cancellables = Set<AnyCancellable>()
     
+    // Public access to player
     public var player: AVPlayer? {
         resources.player
     }
     
-    public init() {
-        setupBackgroundNotifications()
-    }
+    public init() {}
     
     deinit {
         resources.cleanup()
         cancellables.removeAll()
     }
     
-    private func setupBackgroundNotifications() {
-        #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
-        NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
-            .sink { [weak self] _ in
-                self?.handleBackgroundTransition(active: false)
-            }
-            .store(in: &cancellables)
-        
-        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
-            .sink { [weak self] _ in
-                self?.handleBackgroundTransition(active: true)
-            }
-            .store(in: &cancellables)
-        #endif
-    }
-    
-    private func handleBackgroundTransition(active: Bool) {
-        if active {
-            if wasPlayingBeforeBackground && !isOverlayVisible {
-                play()
-            }
-        } else {
-            wasPlayingBeforeBackground = isPlaying
-            pause()
-        }
-    }
-    
     private func cleanup() async {
         resources.cleanup()
-        objectWillChange.send()
+        objectWillChange.send()  // Notify observers of player change
     }
     
     private func setPlayer(_ player: AVPlayer?) {
         resources.player = player
-        objectWillChange.send()
-        
-        #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
-        // Setup orientation change handling
-        if let player = player {
-            resources.orientationObserver = NotificationCenter.default.addObserver(
-                forName: UIDevice.orientationDidChangeNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self, weak player] _ in
-                guard let self = self, let player = player else { return }
-                
-                // Store current time and playing state
-                let currentTime = player.currentTime()
-                let wasPlaying = self.isPlaying
-                
-                // Pause briefly during rotation
-                player.pause()
-                
-                // Resume playback after a short delay to allow rotation to complete
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                    await player.seek(to: currentTime)
-                    if wasPlaying && !self.isOverlayVisible {
-                        player.play()
-                        self.isPlaying = true
-                    }
-                }
-            }
-        }
-        #endif
+        objectWillChange.send()  // Notify observers of player change
     }
     
     public func setVideo(url: URL) async {
@@ -146,13 +82,16 @@ public class VideoPlayerViewModel: ObservableObject {
         let playerItem = AVPlayerItem(asset: asset)
         let player = AVPlayer(playerItem: playerItem)
         
+        // Configure player
         player.automaticallyWaitsToMinimizeStalling = true
         player.volume = 1.0
         
+        // Get video duration
         if let duration = try? await asset.load(.duration) {
             self.duration = duration.seconds
         }
         
+        // Add periodic time observer
         resources.timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main) { [weak self] time in
             Task { @MainActor [weak self] in
                 self?.currentTime = time.seconds
@@ -160,6 +99,7 @@ public class VideoPlayerViewModel: ObservableObject {
             }
         }
         
+        // Observe player item status
         resources.itemObserver = player.currentItem?.observe(\.status, options: [.new, .old]) { [weak self] item, _ in
             Task { @MainActor [weak self] in
                 self?.handleStatusChange(for: item)
@@ -170,12 +110,6 @@ public class VideoPlayerViewModel: ObservableObject {
         if !isOverlayVisible {
             player.play()
             isPlaying = true
-        }
-    }
-    
-    public func releasePlayer() {
-        Task {
-            await cleanup()
         }
     }
     

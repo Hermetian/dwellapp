@@ -10,73 +10,80 @@ import FirebaseAuth
 public struct FeedView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var videoFeedVM = VideoFeedViewModel()
-    @State private var selectedProperty: Property?
     @State private var showFilters = false
     @State private var cancellables = Set<AnyCancellable>()
+    @State private var selectedProperty: Property?
     
     public var body: some View {
-        GeometryReader { geometry in
-            Group {
-                if videoFeedVM.isLoading {
-                    ProgressView("Loading videos...")
-                } else if videoFeedVM.videos.isEmpty {
-                    VStack(spacing: 16) {
-                        Text("No videos found")
-                            .font(.headline)
-                        if videoFeedVM.showOnlyPropertyVideos {
-                            Text("Try disabling property-only filter")
-                                .foregroundColor(.secondary)
-                        }
-                        if let error = videoFeedVM.error {
-                            Text("Error: \(error.localizedDescription)")
-                                .foregroundColor(.red)
-                        }
+        Group {
+            if videoFeedVM.isLoading {
+                ProgressView("Loading videos...")
+            } else if videoFeedVM.videos.isEmpty {
+                VStack(spacing: 16) {
+                    Text("No videos found")
+                        .font(.headline)
+                    if videoFeedVM.showOnlyPropertyVideos {
+                        Text("Try disabling property-only filter")
+                            .foregroundColor(.secondary)
                     }
-                } else {
-                    TabView(selection: $videoFeedVM.currentIndex) {
-                        ForEach(Array(videoFeedVM.videos.enumerated()), id: \.element.id) { index, video in
-                            VideoPlayerCard(
-                                video: video,
-                                cardIndex: index,
-                                activeIndex: $videoFeedVM.currentIndex,
-                                onPropertyTap: {
-                                    guard let propertyId = video.propertyId, !propertyId.isEmpty else {
-                                        print("No propertyId for video \(video.id ?? "")")
-                                        return
-                                    }
-                                    Task {
-                                        do {
-                                            let db = Firestore.firestore()
-                                            let docRef = db.collection("properties").document(propertyId)
-                                            let prop = try await docRef.getDocument(as: Property.self)
-                                            selectedProperty = prop
-                                        } catch {
-                                            print("Error loading property: \(error)")
+                    if let error = videoFeedVM.error {
+                        Text("Error: \(error.localizedDescription)")
+                            .foregroundColor(.red)
+                    }
+                }
+            } else {
+                GeometryReader { geometry in
+                    ScrollView(.vertical) {
+                        TabView(selection: $videoFeedVM.currentIndex) {
+                            ForEach(Array(videoFeedVM.videos.enumerated()), id: \ .element.id) { index, video in
+                                VideoPlayerCard(
+                                    video: video,
+                                    cardIndex: index,
+                                    activeIndex: $videoFeedVM.currentIndex,
+                                    viewPropertyDisabled: (selectedProperty != nil),
+                                    onPropertyTap: {
+                                        guard let propertyId = video.propertyId, !propertyId.isEmpty else {
+                                            print("No propertyId for video \(video.id ?? "")")
+                                            return
+                                        }
+                                        Task {
+                                            do {
+                                                let db = Firestore.firestore()
+                                                let docRef = db.collection("properties").document(propertyId)
+                                                let prop = try await docRef.getDocument(as: Property.self)
+                                                selectedProperty = prop
+                                            } catch {
+                                                print("Error loading property: \(error)")
+                                            }
                                         }
                                     }
+                                )
+                                .id(video.id ?? UUID().uuidString)
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .onAppear {
+                                    if index == videoFeedVM.currentIndex {
+                                        videoFeedVM.onVideoAppear(at: index)
+                                    }
+                                    print("Video appeared: \(video.title) (type: \(video.videoType), userId: \(video.userId))")
                                 }
-                            )
-                            .frame(maxWidth: .infinity, maxHeight: geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom)
-                            .onAppear {
-                                if index == videoFeedVM.currentIndex {
-                                    videoFeedVM.onVideoAppear(at: index)
+                                .onChange(of: videoFeedVM.currentIndex) { newIndex in
+                                    if index == newIndex {
+                                        videoFeedVM.onVideoAppear(at: index)
+                                    }
                                 }
-                                print("Video appeared: \(video.title) (type: \(video.videoType), userId: \(video.userId))")
+                                .tag(index)
                             }
-                            .onChange(of: videoFeedVM.currentIndex) { newIndex in
-                                if index == newIndex {
-                                    videoFeedVM.onVideoAppear(at: index)
-                                }
-                            }
-                            .tag(index)
                         }
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                    .scrollDisabled(true)
+                    .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                        videoFeedVM.currentIndex = videoFeedVM.currentIndex
+                    }
                 }
             }
         }
-        .ignoresSafeArea()
         .sheet(item: $selectedProperty) { property in
             PropertyDetailView(property: property)
         }
@@ -91,13 +98,6 @@ public struct FeedView: View {
                 name: .mainFeedOverlayVisibilityChanged,
                 object: nil,
                 userInfo: ["isVisible": isVisible]
-            )
-        }
-        .onChange(of: selectedProperty) { property in
-            NotificationCenter.default.post(
-                name: .mainFeedOverlayVisibilityChanged,
-                object: nil,
-                userInfo: ["isVisible": property != nil]
             )
         }
         .toolbar {
@@ -264,31 +264,32 @@ private struct FilterSheet: View {
 private struct VideoPlayerCard: View {
     @State private var currentVideo: Video
     let onPropertyTap: () -> Void
+
+    // New properties for active index tracking
     let cardIndex: Int
     @Binding var activeIndex: Int
     
+    // Store whether this is a property video at initialization
     private let isPropertyVideo: Bool
     private let initialPropertyId: String
-    
+    let viewPropertyDisabled: Bool
+    @Environment(\.scenePhase) private var scenePhase
+
     @StateObject private var playerVM = VideoPlayerViewModel()
     @EnvironmentObject private var chatViewModel: ChatViewModel
     @State private var isLoading = true
     @State private var showChatAlert = false
     @AppStorage("hasSeenChatTip") private var hasSeenChatTip = false
     @State private var showChatTip = false
-    
-    // Track if this card is currently visible
-    private var isVisible: Bool {
-        cardIndex == activeIndex
-    }
-    
-    init(video: Video, cardIndex: Int, activeIndex: Binding<Int>, onPropertyTap: @escaping () -> Void) {
+
+    init(video: Video, cardIndex: Int, activeIndex: Binding<Int>, viewPropertyDisabled: Bool, onPropertyTap: @escaping () -> Void) {
         self.onPropertyTap = onPropertyTap
         self.cardIndex = cardIndex
         self._activeIndex = activeIndex
         _currentVideo = State(initialValue: video)
         self.isPropertyVideo = video.videoType == .property
         self.initialPropertyId = video.propertyId ?? ""
+        self.viewPropertyDisabled = viewPropertyDisabled
     }
     
     private func refreshVideo() {
@@ -304,7 +305,7 @@ private struct VideoPlayerCard: View {
             }
         }
     }
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
@@ -312,185 +313,182 @@ private struct VideoPlayerCard: View {
                 Color.black
                 
                 // Video player
-                if let player = playerVM.player, isVisible {
+                if let player = playerVM.player {
                     ZStack {
                         VideoPlayer(player: player)
                             .disabled(true)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         
                         // Video Controls Overlay
-                        if isVisible {
-                            VStack {
-                                Spacer()
-                                
-                                // Progress bar
-                                GeometryReader { geometry in
-                                    ZStack(alignment: .leading) {
-                                        // Background track
-                                        Rectangle()
-                                            .fill(Color.white.opacity(0.3))
-                                            .frame(height: 4)
-                                        
-                                        // Progress track
-                                        Rectangle()
-                                            .fill(Color.white)
-                                            .frame(width: geometry.size.width * (playerVM.currentTime / max(playerVM.duration, 1)), height: 4)
-                                    }
-                                    .gesture(
-                                        DragGesture(minimumDistance: 0)
-                                            .onChanged { value in
-                                                let percentage = value.location.x / geometry.size.width
-                                                let time = max(0, min(playerVM.duration * percentage, playerVM.duration))
-                                                try? playerVM.seek(to: time)
-                                            }
-                                    )
-                                }
-                                .frame(height: 30)
-                                .padding(.horizontal)
-                                
-                                // Control buttons
-                                HStack(spacing: 40) {
-                                    // Skip backward
-                                    Button {
-                                        try? playerVM.seek(to: max(0, playerVM.currentTime - 10))
-                                    } label: {
-                                        Image(systemName: "gobackward.10")
-                                            .font(.system(size: 35))
-                                            .foregroundColor(.white.opacity(0.8))
-                                    }
+                        VStack {
+                            Spacer()
+                            
+                            // Progress bar
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    // Background track
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.3))
+                                        .frame(height: 4)
                                     
-                                    // Play/Pause
-                                    Button {
-                                        if playerVM.isPlaying {
-                                            playerVM.pause()
-                                        } else {
-                                            playerVM.play()
+                                    // Progress track
+                                    Rectangle()
+                                        .fill(Color.white)
+                                        .frame(width: geometry.size.width * (playerVM.currentTime / max(playerVM.duration, 1)), height: 4)
+                                }
+                                .gesture(
+                                    DragGesture(minimumDistance: 0)
+                                        .onChanged { value in
+                                            let percentage = value.location.x / geometry.size.width
+                                            let time = max(0, min(playerVM.duration * percentage, playerVM.duration))
+                                            try? playerVM.seek(to: time)
                                         }
-                                    } label: {
-                                        Image(systemName: playerVM.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                            .font(.system(size: 50))
-                                            .foregroundColor(.white.opacity(0.8))
-                                    }
-                                    
-                                    // Skip forward
-                                    Button {
-                                        try? playerVM.seek(to: min(playerVM.duration, playerVM.currentTime + 10))
-                                    } label: {
-                                        Image(systemName: "goforward.10")
-                                            .font(.system(size: 35))
-                                            .foregroundColor(.white.opacity(0.8))
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.bottom, 20)
-                                
-                                // Time labels
-                                HStack {
-                                    Text(formatTime(playerVM.currentTime))
-                                    Spacer()
-                                    Text(formatTime(playerVM.duration))
-                                }
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.8))
-                                .padding(.horizontal)
+                                )
                             }
-                            .padding(.bottom, 100)
+                            .frame(height: 30)
+                            .padding(.horizontal)
+                            
+                            // Control buttons
+                            HStack(spacing: 40) {
+                                // Skip backward
+                                Button {
+                                    try? playerVM.seek(to: max(0, playerVM.currentTime - 10))
+                                } label: {
+                                    Image(systemName: "gobackward.10")
+                                        .font(.system(size: 35))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                
+                                // Play/Pause
+                                Button {
+                                    if playerVM.isPlaying {
+                                        playerVM.pause()
+                                    } else {
+                                        playerVM.play()
+                                    }
+                                } label: {
+                                    Image(systemName: playerVM.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                
+                                // Skip forward
+                                Button {
+                                    try? playerVM.seek(to: min(playerVM.duration, playerVM.currentTime + 10))
+                                } label: {
+                                    Image(systemName: "goforward.10")
+                                        .font(.system(size: 35))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.bottom, 20)
+                            
+                            // Time labels
+                            HStack {
+                                Text(formatTime(playerVM.currentTime))
+                                Spacer()
+                                Text(formatTime(playerVM.duration))
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(.horizontal)
                         }
+                        .padding(.bottom, 100)  // Add padding to avoid overlap with other controls
                     }
                 }
                 
                 // Controls overlay
-                if isVisible {
-                    VStack {
-                        Spacer()
-                        
-                        HStack(alignment: .bottom, spacing: 20) {
-                            // Left side - Video info
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(currentVideo.title)
-                                    .font(.headline)
-                                
-                                if isPropertyVideo && !initialPropertyId.isEmpty {
-                                    Text(currentVideo.description)
-                                        .font(.subheadline)
-                                    
-                                    Button {
-                                        onPropertyTap()
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: "house.fill")
-                                            Text("View Property")
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(Color.blue)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(20)
-                                    }
-                                }
-                            }
-                            .padding()
-                            .frame(width: geometry.size.width * 0.8, alignment: .leading)
+                VStack {
+                    Spacer()
+                    
+                    HStack(alignment: .bottom, spacing: 20) {
+                        // Left side - Video info
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(currentVideo.title)
+                                .font(.headline)
                             
-                            // Right side - Action buttons
-                            VStack(spacing: 20) {
-                                if isPropertyVideo && !initialPropertyId.isEmpty && currentVideo.userId != Auth.auth().currentUser?.uid {
-                                    Button {
-                                        showChatAlert = true
-                                        hasSeenChatTip = true
-                                        showChatTip = false
-                                    } label: {
-                                        VStack {
-                                            Image(systemName: "message.fill")
-                                                .font(.title)
-                                            Text("Chat")
-                                                .font(.caption)
-                                        }
-                                        .frame(width: 60, height: 60)
-                                        .background(Color.white.opacity(0.2))
-                                        .cornerRadius(8)
-                                    }
-                                    .overlay {
-                                        if !hasSeenChatTip && showChatTip {
-                                            VStack {
-                                                Text("👋 Tap here to chat about this property!")
-                                                    .font(.caption)
-                                                    .foregroundColor(.white)
-                                                    .padding(8)
-                                                    .background(Color.blue)
-                                                    .cornerRadius(8)
-                                            }
-                                            .offset(x: -120, y: 0)
-                                        }
-                                    }
-                                }
+                            if isPropertyVideo && !initialPropertyId.isEmpty {
+                                Text(currentVideo.description)
+                                    .font(.subheadline)
                                 
                                 Button {
-                                    // Share functionality
+                                    onPropertyTap()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "house.fill")
+                                        Text("View Property")
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(20)
+                                }
+                                .disabled(viewPropertyDisabled)
+                            }
+                        }
+                        .padding()
+                        .frame(width: geometry.size.width * 0.8, alignment: .leading)
+                        
+                        // Right side - Action buttons
+                        VStack(spacing: 20) {
+                            if isPropertyVideo && !initialPropertyId.isEmpty && currentVideo.userId != Auth.auth().currentUser?.uid {
+                                Button {
+                                    showChatAlert = true
+                                    hasSeenChatTip = true
+                                    showChatTip = false
                                 } label: {
                                     VStack {
-                                        Image(systemName: "square.and.arrow.up")
+                                        Image(systemName: "message.fill")
                                             .font(.title)
-                                        Text("Share")
+                                        Text("Chat")
                                             .font(.caption)
                                     }
                                     .frame(width: 60, height: 60)
                                     .background(Color.white.opacity(0.2))
                                     .cornerRadius(8)
                                 }
+                                .overlay {
+                                    if !hasSeenChatTip && showChatTip {
+                                        VStack {
+                                            Text("👋 Tap here to chat about this property!")
+                                                .font(.caption)
+                                                .foregroundColor(.white)
+                                                .padding(8)
+                                                .background(Color.blue)
+                                                .cornerRadius(8)
+                                        }
+                                        .offset(x: -120, y: 0)
+                                    }
+                                }
                             }
-                            .foregroundColor(.white)
-                            .padding(.trailing, 20)
+                            
+                            Button {
+                                // Share functionality
+                            } label: {
+                                VStack {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.title)
+                                    Text("Share")
+                                        .font(.caption)
+                                }
+                                .frame(width: 60, height: 60)
+                                .background(Color.white.opacity(0.2))
+                                .cornerRadius(8)
+                            }
                         }
-                        .padding(.bottom, 30)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.black.opacity(0.7), .clear]),
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
+                        .foregroundColor(.white)
+                        .padding(.trailing, 20)
                     }
+                    .padding(.bottom, 30)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [.black.opacity(0.7), .clear]),
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                    )
                 }
                 
                 if isLoading {
@@ -499,7 +497,7 @@ private struct VideoPlayerCard: View {
             }
         }
         .onAppear {
-            if isLoading && isVisible {
+            if isLoading {
                 loadVideo()
             }
             playerVM.setOverlayVisible(false)
@@ -513,18 +511,16 @@ private struct VideoPlayerCard: View {
             }
         }
         .onChange(of: activeIndex) { newValue in
-            if cardIndex == newValue {
-                if isLoading {
-                    loadVideo()
-                } else {
-                    playerVM.play()
-                }
-            } else {
+            if newValue != cardIndex {
                 playerVM.pause()
-                if abs(cardIndex - newValue) > 1 {
-                    // Release player if card is not adjacent to current
-                    playerVM.releasePlayer()
-                    isLoading = true
+            }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase != .active {
+                playerVM.pause()
+            } else {
+                if activeIndex == cardIndex {
+                    playerVM.play()
                 }
             }
         }
@@ -547,7 +543,7 @@ private struct VideoPlayerCard: View {
             isLoading = true
             if let url = URL(string: currentVideo.videoUrl) {
                 await playerVM.setVideo(url: url)
-                if isVisible {
+                if playerVM.isPlaying {
                     playerVM.play()
                 }
                 isLoading = false
