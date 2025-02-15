@@ -17,6 +17,8 @@ public struct Video: Identifiable, Codable {
     public let uploadDate: Date
     public let userId: String  // Added to track who uploaded the video
     @ServerTimestamp public var serverTimestamp: Timestamp?
+    public var likeCount: Int?
+    public var likedBy: [String]?
     
     public var uniqueIdentifier: String {
         [id ?? UUID().uuidString,
@@ -36,6 +38,8 @@ public struct Video: Identifiable, Codable {
         case uploadDate
         case userId
         case serverTimestamp
+        case likeCount
+        case likedBy
     }
     
     public init(id: String? = nil,
@@ -47,7 +51,9 @@ public struct Video: Identifiable, Codable {
                thumbnailUrl: String? = nil,
                uploadDate: Date = Date(),
                userId: String,
-               serverTimestamp: Timestamp? = nil) {
+               serverTimestamp: Timestamp? = nil,
+               likeCount: Int? = 0,
+               likedBy: [String]? = []) {
         self.id = id
         self.videoType = videoType
         self.propertyId = propertyId
@@ -58,6 +64,8 @@ public struct Video: Identifiable, Codable {
         self.uploadDate = uploadDate
         self.userId = userId
         self.serverTimestamp = serverTimestamp
+        self.likeCount = likeCount
+        self.likedBy = likedBy
     }
 }
 

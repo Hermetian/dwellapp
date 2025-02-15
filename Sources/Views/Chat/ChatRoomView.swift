@@ -8,9 +8,18 @@ public struct ChatRoomView: View {
     @State private var newMessage: String = ""
     @EnvironmentObject private var viewModel: ChatViewModel
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject private var appViewModel: AppViewModel
     
     var messages: [ChatMessage] {
         viewModel.messages[channel.id ?? ""] ?? []
+    }
+    
+    private var isSeller: Bool {
+        channel.isSeller(currentUserId: appViewModel.authViewModel.currentUser?.id ?? "")
+    }
+    
+    private var otherUserId: String {
+        channel.otherUserId(currentUserId: appViewModel.authViewModel.currentUser?.id ?? "")
     }
     
     public var body: some View {
@@ -44,7 +53,9 @@ public struct ChatRoomView: View {
             .padding(.vertical, 8)
             .background(colorScheme == .dark ? Color.black : Color.white)
         }
-        .navigationTitle(channel.otherUserName ?? (channel.isSeller ? "Buyer" : "Seller"))
+        .padding(.bottom, 20)
+        .padding(.leading, 15)
+        .navigationTitle(channel.chatTitle ?? (channel.otherUserName ?? (isSeller ? "Buyer" : "Seller")))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             print("🔄 ChatRoomView: Setting up message subscription for channel \(channel.id ?? "")")
@@ -81,12 +92,12 @@ struct MessageRow: View {
         HStack {
             if message.isCurrentUser {
                 Spacer()
-                Text(message.content)
+                Text(message.text)
                     .padding(10)
                     .background(Color.blue.opacity(0.2))
                     .cornerRadius(10)
             } else {
-                Text(message.content)
+                Text(message.text)
                     .padding(10)
                     .background(colorScheme == .dark ? Color.gray.opacity(0.3) : Color.gray.opacity(0.2))
                     .cornerRadius(10)
@@ -104,8 +115,7 @@ struct ChatRoomView_Previews: PreviewProvider {
                 buyerId: "buyer123",
                 sellerId: "seller123",
                 propertyId: "property123",
-                videoId: "video123",
-                propertySummary: "Sample Property"
+                videoId: "video123"
             ))
             .environmentObject(ChatViewModel())
         }

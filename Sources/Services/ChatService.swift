@@ -4,8 +4,11 @@ import Combine
 
 public class ChatService {
     private let db = Firestore.firestore()
+    private let databaseService: DatabaseService
     
-    public init() {}
+    public init(databaseService: DatabaseService = DatabaseService()) {
+        self.databaseService = databaseService
+    }
     
     public func observeChannels(forUserId userId: String) -> AnyPublisher<[ChatChannel], Error> {
         print("🔍 ChatService: Starting channel observation for user \(userId)")
@@ -34,7 +37,11 @@ public class ChatService {
                         return Future<ChatChannel?, Error> { promise in
                             Task {
                                 do {
-                                    let otherUserId = channel.otherUserId
+                                    guard let currentUserId = Auth.auth().currentUser?.uid else {
+                                        promise(.success(channel))
+                                        return
+                                    }
+                                    let otherUserId = channel.otherUserId(currentUserId: currentUserId)
                                     let userDoc = try await self.db.collection("users").document(otherUserId).getDocument()
                                     if let userData = try? userDoc.data(as: User.self) {
                                         channel.otherUserName = userData.name
@@ -68,69 +75,26 @@ public class ChatService {
         guard let currentUserId = Auth.auth().currentUser?.uid,
               let propertyId = video.propertyId else { return }
         
-        print("🔄 ChatService: Checking for existing channel - videoId: \(video.id ?? ""), buyerId: \(currentUserId)")
-        
-        // Check if channel already exists
-        let querySnapshot = try await db.collection("chatChannels")
-            .whereField("videoId", isEqualTo: video.id ?? "")
-            .whereField("buyerId", isEqualTo: currentUserId)
-            .getDocuments()
-        
-        if !querySnapshot.documents.isEmpty {
-            print("ℹ️ ChatService: Channel already exists")
-            return // Channel already exists
-        }
-        
-        print("🆕 ChatService: Creating new channel")
-        
-        // Create new channel
-        let channel = ChatChannel(
-            buyerId: currentUserId,
-            sellerId: video.userId,
+        // Delegate channel creation to DatabaseService
+        _ = try await databaseService.createOrGetConversation(
             propertyId: propertyId,
-            videoId: video.id ?? "",
-            propertySummary: video.title,
-            lastMessageTimestamp: Date(),
-            serverTimestamp: Timestamp(date: Date()),
-            hasUnreadMessages: false
+            tenantId: currentUserId,
+            managerId: video.userId,
+            videoId: video.id
         )
-        
-        let docRef = db.collection("chatChannels").document()
-        print("📝 ChatService: Setting data for channel \(docRef.documentID)")
-        try docRef.setData(from: channel)
-        
-        // Update the timestamp using server timestamp
-        try await docRef.updateData([
-            "serverTimestamp": FieldValue.serverTimestamp(),
-            "lastMessageTimestamp": FieldValue.serverTimestamp()
-        ])
-        print("✅ ChatService: Channel created and timestamps updated")
     }
     
-    public func sendMessage(_ content: String, in channelId: String) async throws {
+    public func sendMessage(_ text: String, in channelId: String) async throws {
         guard let currentUserId = Auth.auth().currentUser?.uid else { return }
         
         let message = ChatMessage(
+            id: UUID().uuidString,
             channelId: channelId,
             senderId: currentUserId,
-            content: content
+            text: text
         )
         
-        let batch = db.batch()
-        
-        // Add message
-        let messageRef = db.collection("chatMessages").document()
-        try batch.setData(from: message, forDocument: messageRef)
-        
-        // Update channel
-        let channelRef = db.collection("chatChannels").document(channelId)
-        batch.updateData([
-            "lastMessage": content,
-            "lastMessageTimestamp": Date(),
-            "hasUnreadMessages": true
-        ], forDocument: channelRef)
-        
-        try await batch.commit()
+        try await databaseService.sendMessage(message)
     }
     
     public func observeMessages(in channelId: String) -> AnyPublisher<[ChatMessage], Error> {
@@ -163,8 +127,8 @@ public class ChatService {
     }
     
     public func markChannelAsRead(_ channelId: String) async throws {
-        let ref = db.collection("chatChannels").document(channelId)
-        try await ref.updateData(["hasUnreadMessages": false])
+        guard let currentUserId = Auth.auth().currentUser?.uid else { return }
+        try await databaseService.markChannelAsRead(channelId: channelId, forUserId: currentUserId)
     }
     
     public func deleteChannel(_ channelId: String) async throws {

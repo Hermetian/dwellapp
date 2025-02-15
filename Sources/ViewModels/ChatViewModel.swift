@@ -55,9 +55,9 @@ public class ChatViewModel: ObservableObject {
         isLoading = false
     }
     
-    public func sendMessage(_ content: String, in channelId: String) async {
+    public func sendMessage(_ text: String, in channelId: String) async {
         do {
-            try await chatService.sendMessage(content, in: channelId)
+            try await chatService.sendMessage(text, in: channelId)
         } catch {
             self.error = error
             print("Error sending message: \(error)")

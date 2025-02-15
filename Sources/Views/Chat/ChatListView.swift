@@ -5,7 +5,20 @@ import Core
 
 public struct ChatListView: View {
     @EnvironmentObject private var chatViewModel: ChatViewModel
+    @EnvironmentObject private var appViewModel: AppViewModel
     @Environment(\.colorScheme) var colorScheme
+    
+    private func isChannelSeller(_ channel: ChatChannel) -> Bool {
+        channel.isSeller(currentUserId: appViewModel.authViewModel.currentUser?.id ?? "")
+    }
+    
+    private func getOtherUserId(_ channel: ChatChannel) -> String {
+        channel.otherUserId(currentUserId: appViewModel.authViewModel.currentUser?.id ?? "")
+    }
+    
+    private func channelDisplayName(_ channel: ChatChannel) -> String {
+        channel.otherUserName ?? (isChannelSeller(channel) ? "Buyer" : "Seller")
+    }
     
     public var body: some View {
         NavigationView {
@@ -30,13 +43,13 @@ public struct ChatListView: View {
                         NavigationLink(destination: ChatRoomView(channel: channel)) {
                             HStack {
                                 Circle()
-                                    .fill(channel.isSeller ? Color.blue : Color.green)
+                                    .fill(isChannelSeller(channel) ? Color.blue : Color.green)
                                     .frame(width: 20, height: 20)
                                 VStack(alignment: .leading) {
-                                    Text(channel.otherUserName ?? (channel.isSeller ? "Buyer" : "Seller"))
+                                    Text(channelDisplayName(channel))
                                         .font(.headline)
-                                    if let summary = channel.propertySummary {
-                                        Text(summary)
+                                    if let title = channel.chatTitle {
+                                        Text(title)
                                             .font(.subheadline)
                                             .lineLimit(1)
                                             .foregroundColor(.secondary)
@@ -50,7 +63,7 @@ public struct ChatListView: View {
                                 }
                                 .padding(.leading, 8)
                                 
-                                if channel.hasUnreadMessages {
+                                if !channel.isRead && channel.lastSenderId != appViewModel.authViewModel.currentUser?.id {
                                     Spacer()
                                     Circle()
                                         .fill(Color.blue)
@@ -100,5 +113,7 @@ public struct ChatListView: View {
 struct ChatListView_Previews: PreviewProvider {
     static var previews: some View {
         ChatListView()
+            .environmentObject(ChatViewModel())
+            .environmentObject(AppViewModel())
     }
 } 

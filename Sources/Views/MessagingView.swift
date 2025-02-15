@@ -4,50 +4,142 @@ import ViewModels
 
 public struct MessagingView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
-    @StateObject private var messagingViewModel = MessagingViewModel()
+    @StateObject private var messagingViewModel: MessagingViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var messageText = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    let propertyId: String
+    let managerId: String
+    let videoId: String?
+    
+    public init(propertyId: String, managerId: String, videoId: String? = nil) {
+        self.propertyId = propertyId
+        self.managerId = managerId
+        self.videoId = videoId
+        _messagingViewModel = StateObject(wrappedValue: MessagingViewModel())
+    }
     
     public var body: some View {
-        NavigationView {
-            Group {
-                if messagingViewModel.isLoading {
-                    ProgressView()
-                } else if messagingViewModel.conversations.isEmpty {
-                    EmptyConversationsView()
-                } else {
-                    conversationsList
+        VStack {
+            ScrollView {
+                LazyVStack {
+                    ForEach(messagingViewModel.messages) { message in
+                        MessageBubble(message: message, 
+                                    isFromCurrentUser: message.senderId == appViewModel.authViewModel.currentUser?.id)
+                    }
+                }
+                .padding()
+            }
+            
+            HStack {
+                TextField("Message...", text: $messageText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal)
+                
+                Button {
+                    sendMessage()
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .foregroundColor(.blue)
+                }
+                .padding(.trailing)
+                .disabled(messageText.isEmpty)
+            }
+            .padding(.vertical)
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Close") {
+                    dismiss()
                 }
             }
-            .navigationTitle("Messages")
+        }
+        .onDisappear {
+            messagingViewModel.clearChannelSubscription()
         }
         .onAppear {
-            if let userId = appViewModel.authViewModel.currentUser?.id {
-                messagingViewModel.loadConversations(for: userId)
+            Task {
+                // If no conversation/channel exists, create or get it
+                if messagingViewModel.currentChannelId?.isEmpty ?? true {
+                    if let userId = appViewModel.authViewModel.currentUser?.id {
+                        do {
+                            messagingViewModel.currentChannelId = try await messagingViewModel.createOrGetConversation(propertyId: propertyId, tenantId: userId, managerId: managerId, videoId: videoId)
+                        } catch {
+                            print("Error creating/getting conversation: \(error)")
+                            errorMessage = error.localizedDescription
+                            showError = true
+                        }
+                    }
+                }
+                // Load messages for the conversation if we have a channel id
+                if let channelId = messagingViewModel.currentChannelId {
+                    messagingViewModel.loadMessages(for: channelId)
+                }
             }
         }
-        .alert("Error", isPresented: .constant(messagingViewModel.error != nil)) {
+        .alert("Error", isPresented: $showError) {
             Button("OK") {
-                messagingViewModel.error = nil
+                showError = false
+                errorMessage = ""
             }
         } message: {
-            Text(messagingViewModel.error?.localizedDescription ?? "")
+            Text(errorMessage)
         }
     }
     
-    private var conversationsList: some View {
-        List(messagingViewModel.conversations) { conversation in
-            NavigationLink {
-                ConversationView(conversation: conversation)
-            } label: {
-                ConversationRow(conversation: conversation)
+    private func sendMessage() {
+        guard !messageText.isEmpty,
+              let userId = appViewModel.authViewModel.currentUser?.id else {
+            return
+        }
+        
+        let messageToSend = messageText
+        messageText = ""  // Clear the input field immediately
+        
+        Task {
+            do {
+                try await messagingViewModel.sendMessage(
+                    messageToSend,
+                    propertyId: propertyId,
+                    tenantId: userId,
+                    managerId: managerId,
+                    videoId: videoId
+                )
+            } catch {
+                // Handle error (perhaps show an alert)
+                print("Error sending message: \(error)")
+                messageText = messageToSend // Restore message text if send failed
             }
         }
-        .listStyle(.inset)
+    }
+}
+
+struct MessageBubble: View {
+    let message: ChatMessage
+    let isFromCurrentUser: Bool
+    
+    var body: some View {
+        HStack {
+            if isFromCurrentUser { Spacer() }
+            
+            Text(message.text)
+                .padding()
+                .background(isFromCurrentUser ? Color.blue : Color.gray.opacity(0.3))
+                .foregroundColor(isFromCurrentUser ? .white : .primary)
+                .cornerRadius(20)
+            
+            if !isFromCurrentUser { Spacer() }
+        }
     }
 }
 
 struct ConversationRow: View {
-    let conversation: Conversation
+    let conversation: ChatChannel
     @StateObject private var propertyViewModel = PropertyViewModel()
+    @EnvironmentObject private var appViewModel: AppViewModel
     
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -60,6 +152,14 @@ struct ConversationRow: View {
         formatter.dateFormat = "MM/dd/yy"
         return formatter
     }()
+    
+    private var isSeller: Bool {
+        conversation.isSeller(currentUserId: appViewModel.authViewModel.currentUser?.id ?? "")
+    }
+    
+    private var otherUserId: String {
+        conversation.otherUserId(currentUserId: appViewModel.authViewModel.currentUser?.id ?? "")
+    }
     
     public var body: some View {
         HStack(spacing: 12) {
@@ -87,6 +187,10 @@ struct ConversationRow: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
+                
+                Text(isSeller ? "Buyer" : "Seller")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             
             Spacer()
@@ -100,18 +204,20 @@ struct ConversationRow: View {
                 }
                 
                 // Unread indicator
-                if conversation.hasUnreadMessages {
+                if !conversation.isRead && conversation.lastSenderId != appViewModel.authViewModel.currentUser?.id {
+                    Spacer()
                     Circle()
                         .fill(Color.blue)
                         .frame(width: 10, height: 10)
                 }
             }
+            .padding(.leading, 8)
         }
         .padding(.vertical, 8)
         .onAppear {
-            if let propertyId = conversation.propertyId {
+            if !conversation.propertyId.isEmpty {
                 Task {
-                    await propertyViewModel.loadProperty(id: propertyId)
+                    await propertyViewModel.loadProperty(id: conversation.propertyId)
                 }
             }
         }
@@ -129,13 +235,21 @@ struct ConversationRow: View {
     }
 }
 
-struct ConversationView: View {
-    let conversation: Conversation
+public struct ConversationView: View {
+    let conversation: ChatChannel
     @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var messagingViewModel = MessagingViewModel()
     @State private var messageText = ""
     @State private var showError = false
     @State private var errorMessage = ""
+    
+    private var isSeller: Bool {
+        conversation.isSeller(currentUserId: appViewModel.authViewModel.currentUser?.id ?? "")
+    }
+    
+    private var otherUserId: String {
+        conversation.otherUserId(currentUserId: appViewModel.authViewModel.currentUser?.id ?? "")
+    }
     
     public var body: some View {
         VStack {
@@ -171,15 +285,19 @@ struct ConversationView: View {
             }
             .padding()
         }
-        .navigationTitle("Chat")
+        .navigationTitle(isSeller ? "Chat with Buyer" : "Chat with Seller")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .onAppear {
-            messagingViewModel.loadMessages(for: conversation.id)
+            if let channelId = conversation.id {
+                messagingViewModel.loadMessages(for: channelId)
+            }
             Task {
                 do {
-                    try await messagingViewModel.markConversationAsRead(conversation.id)
+                    if let channelId = conversation.id {
+                        try await messagingViewModel.markChannelAsRead(channelId)
+                    }
                 } catch {
                     showError = true
                     errorMessage = error.localizedDescription
@@ -198,6 +316,7 @@ struct ConversationView: View {
     
     private func sendMessage() {
         guard let userId = appViewModel.authViewModel.currentUser?.id,
+              let channelId = conversation.id,
               !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
@@ -207,46 +326,11 @@ struct ConversationView: View {
         
         Task {
             do {
-                try await messagingViewModel.sendMessage(messageToSend, in: conversation.id, from: userId)
+                try await messagingViewModel.sendMessage(messageToSend, in: channelId, from: userId)
             } catch {
                 showError = true
                 errorMessage = error.localizedDescription
                 messageText = messageToSend // Restore message text if send failed
-            }
-        }
-    }
-}
-
-struct MessageBubble: View {
-    let message: Message
-    let isFromCurrentUser: Bool
-    
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter
-    }()
-    
-    public var body: some View {
-        HStack {
-            if isFromCurrentUser {
-                Spacer()
-            }
-            
-            VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
-                Text(message.text)
-                    .padding(12)
-                    .background(isFromCurrentUser ? Color.blue : Color.secondary.opacity(0.2))
-                    .foregroundColor(isFromCurrentUser ? .white : .primary)
-                    .cornerRadius(16)
-                
-                Text(Self.timeFormatter.string(from: message.timestamp))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            
-            if !isFromCurrentUser {
-                Spacer()
             }
         }
     }
@@ -273,6 +357,8 @@ struct EmptyConversationsView: View {
 }
 
 #Preview {
-    MessagingView()
+    NavigationView {
+        MessagingView(propertyId: "sample-property-id", managerId: "123", videoId: nil)
         .environmentObject(AppViewModel())
+    }
 } 

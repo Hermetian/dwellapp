@@ -14,6 +14,7 @@ public final class VideoViewModel: ObservableObject {
     @Published public var filteredVideos: [Video] = []
     @Published public var aiProcessingVideoId: String?
     @Published public var aiProcessedResults: [String: (title: String, description: String, amenities: [String])] = [:]
+    @Published public var likedVideos: [Video] = []
     
     public var currentUserId: String? {
         didSet {
@@ -247,6 +248,68 @@ public final class VideoViewModel: ObservableObject {
         
         aiProcessedResults[videoId] = suggestions
         aiProcessingVideoId = nil
+    }
+    
+    public func toggleVideoLike(videoId: String, userId: String) async throws {
+        guard !isLoading else { throw NSError(domain: "VideoViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
+        isLoading = true
+        error = nil
+        
+        do {
+            let isLiked = likedVideos.contains { $0.id == videoId }
+            
+            try await databaseService.updateVideo(id: videoId, data: [
+                "likeCount": FieldValue.increment(Int64(isLiked ? -1 : 1)),
+                "likedBy": isLiked ? FieldValue.arrayRemove([userId]) : FieldValue.arrayUnion([userId])
+            ])
+            
+            // Update local state
+            if isLiked {
+                likedVideos.removeAll { $0.id == videoId }
+            } else if let video = videos.first(where: { $0.id == videoId }) {
+                likedVideos.append(video)
+            }
+            
+            // Update the video in the videos array
+            if let index = videos.firstIndex(where: { $0.id == videoId }) {
+                var updatedVideo = videos[index]
+                updatedVideo.likeCount = (updatedVideo.likeCount ?? 0) + (isLiked ? -1 : 1)
+                if isLiked {
+                    updatedVideo.likedBy?.removeAll { $0 == userId }
+                } else {
+                    if updatedVideo.likedBy == nil {
+                        updatedVideo.likedBy = []
+                    }
+                    updatedVideo.likedBy?.append(userId)
+                }
+                videos[index] = updatedVideo
+            }
+        } catch {
+            self.error = error
+            throw error
+        }
+        
+        isLoading = false
+    }
+    
+    // Add method to load liked videos for a user
+    public func loadLikedVideos(for userId: String) async throws {
+        guard !isLoading else { return }
+        isLoading = true
+        error = nil
+        
+        do {
+            let querySnapshot = try await db.collection("videos")
+                .whereField("likedBy", arrayContains: userId)
+                .getDocuments()
+            
+            likedVideos = try querySnapshot.documents.map { try $0.data(as: Video.self) }
+        } catch {
+            self.error = error
+            throw error
+        }
+        
+        isLoading = false
     }
     
     deinit {

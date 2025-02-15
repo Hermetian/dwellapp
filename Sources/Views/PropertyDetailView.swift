@@ -93,39 +93,49 @@ public struct PropertyDetailView: View {
                     // Action Buttons
                     HStack {
                         Button {
-                            Task {
-                                do {
-                                    try await appViewModel.propertyViewModel.toggleFavorite(propertyId: property.id ?? "", userId: appViewModel.authViewModel.currentUser?.id ?? "")
-                                } catch {
-                                    errorMessage = error.localizedDescription
-                                    showError = true
+                            if let propertyId = property.id, !propertyId.isEmpty {
+                                Task {
+                                    do {
+                                        try await appViewModel.propertyViewModel.toggleFavorite(
+                                            propertyId: propertyId,
+                                            userId: appViewModel.authViewModel.currentUser?.id ?? ""
+                                        )
+                                    } catch {
+                                        errorMessage = error.localizedDescription
+                                        showError = true
+                                    }
                                 }
+                            } else {
+                                errorMessage = "Property not saved. Cannot favorite."
+                                showError = true
                             }
                         } label: {
                             Image(systemName: isFavorited ? "heart.fill" : "heart")
+                                .font(.title2)
                                 .foregroundColor(isFavorited ? .red : .gray)
                         }
                         .buttonStyle(.bordered)
+                        .disabled(property.id?.isEmpty ?? true)
                         
                         Spacer()
                         
                         Button {
-                            Task {
-                                do {
-                                    guard let userId = appViewModel.authViewModel.currentUser?.id else { return }
-                                    let conversationId = try await messagingViewModel.createOrGetConversation(
-                                        propertyId: property.id ?? "",
-                                        tenantId: userId,
-                                        managerId: property.managerId
-                                    )
-                                    if !conversationId.isEmpty {
-                                        showingContact = true
-                                    }
-                                } catch {
-                                    errorMessage = error.localizedDescription
-                                    showError = true
-                                }
+                            // Check that the currentUser id and property id are valid
+                            guard let userId = appViewModel.authViewModel.currentUser?.id,
+                                  let propertyId = property.id, !propertyId.isEmpty else {
+                                errorMessage = "Property not saved. Cannot contact manager."
+                                showError = true
+                                return
                             }
+                            
+                            // Check if trying to message oneself
+                            if userId == property.managerId {
+                                errorMessage = "Despite everything, it's still you (can't message oneself)"
+                                showError = true
+                                return
+                            }
+                            
+                            showingContact = true
                         } label: {
                             Text("Contact Manager")
                                 .foregroundColor(.white)
@@ -156,19 +166,56 @@ public struct PropertyDetailView: View {
                         if let videoId = selectedVideoId,
                            let video = videos.first(where: { video in video.id == videoId }),
                            let videoURL = URL(string: video.videoUrl) {
-                            VideoPlayer(player: previewPlayer ?? AVPlayer(url: videoURL))
-                                .frame(width: geometry.size.width, height: geometry.size.height)
-                                .edgesIgnoringSafeArea(.all)
-                                .onAppear {
-                                    if previewPlayer == nil {
-                                        previewPlayer = AVPlayer(url: videoURL)
+                            ZStack {
+                                VideoPlayer(player: previewPlayer ?? AVPlayer(url: videoURL))
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                                    .edgesIgnoringSafeArea(.all)
+                                    .onAppear {
+                                        if previewPlayer == nil {
+                                            previewPlayer = AVPlayer(url: videoURL)
+                                        }
+                                        previewPlayer?.play()
                                     }
-                                    previewPlayer?.play()
+                                    .onDisappear {
+                                        previewPlayer?.pause()
+                                        previewPlayer = nil
+                                    }
+                                
+                                // Add like button overlay
+                                VStack {
+                                    Spacer()
+                                    HStack {
+                                        Spacer()
+                                        Button {
+                                            if let propertyId = property.id, !propertyId.isEmpty {
+                                                Task {
+                                                    do {
+                                                        try await appViewModel.propertyViewModel.toggleFavorite(
+                                                            propertyId: propertyId,
+                                                            userId: appViewModel.authViewModel.currentUser?.id ?? ""
+                                                        )
+                                                    } catch {
+                                                        errorMessage = error.localizedDescription
+                                                        showError = true
+                                                    }
+                                                }
+                                            } else {
+                                                errorMessage = "Property not saved. Cannot favorite."
+                                                showError = true
+                                            }
+                                        } label: {
+                                            Image(systemName: isFavorited ? "heart.fill" : "heart")
+                                                .font(.system(size: 30))
+                                                .foregroundColor(isFavorited ? .red : .white)
+                                                .padding(20)
+                                                .background(.ultraThinMaterial)
+                                                .clipShape(Circle())
+                                        }
+                                        .padding(.trailing, 20)
+                                        .padding(.bottom, 20)
+                                    }
                                 }
-                                .onDisappear {
-                                    previewPlayer?.pause()
-                                    previewPlayer = nil
-                                }
+                            }
                         }
                     }
                 }
@@ -185,7 +232,14 @@ public struct PropertyDetailView: View {
             }
         }
         .sheet(isPresented: $showingContact) {
-            MessagingView()
+            NavigationView {
+                MessagingView(
+                    propertyId: property.id ?? "",
+                    managerId: property.managerId,
+                    videoId: selectedVideoId
+                )
+                .environmentObject(appViewModel)
+            }
         }
         .task {
             // Load videos when view appears
@@ -236,6 +290,7 @@ struct AmenityView: View {
 #Preview {
     NavigationView {
         PropertyDetailView(property: Property(
+            id: "sample-property-id",
             managerId: "123",
             title: "Sample Property",
             description: "A beautiful property",

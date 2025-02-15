@@ -60,6 +60,10 @@ public struct MainTabView: View {
                 }
                 .tag(2)
             }
+            .onChange(of: selectedTab) { newValue in
+                let isMainFeedActive = (newValue == 0)
+                NotificationCenter.default.post(name: .mainFeedVisibilityChanged, object: nil, userInfo: ["isVisible": isMainFeedActive])
+            }
             
             // Custom Tab Bar
             VStack(spacing: 0) {

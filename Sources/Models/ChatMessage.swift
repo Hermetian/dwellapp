@@ -6,37 +6,36 @@ public struct ChatMessage: Identifiable, Codable {
     @DocumentID public var id: String?
     public let channelId: String
     public let senderId: String
-    public let content: String
-    public let timestamp: Date
-    @ServerTimestamp public var serverTimestamp: Timestamp?
-    public var isRead: Bool
+    public let text: String
+    @ServerTimestamp public var timestamp: Timestamp?
+    public let attachmentUrl: String?
+    public let attachmentType: String?
     
     private enum CodingKeys: String, CodingKey {
         case id
         case channelId
         case senderId
-        case content
+        case text
         case timestamp
-        case serverTimestamp
-        case isRead
+        case attachmentUrl
+        case attachmentType
     }
     
     public init(
         id: String? = nil,
         channelId: String,
         senderId: String,
-        content: String,
-        timestamp: Date = Date(),
+        text: String,
         serverTimestamp: Timestamp? = nil,
-        isRead: Bool = false
+        attachmentUrl: String? = nil,
+        attachmentType: String? = nil
     ) {
         self.id = id
         self.channelId = channelId
         self.senderId = senderId
-        self.content = content
-        self.timestamp = timestamp
-        self.serverTimestamp = serverTimestamp
-        self.isRead = isRead
+        self.text = text
+        self.attachmentUrl = attachmentUrl
+        self.attachmentType = attachmentType
     }
     
     public var isCurrentUser: Bool {

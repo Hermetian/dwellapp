@@ -1,7 +1,6 @@
 import FirebaseFirestore
 import Combine
 
-@MainActor
 public class DatabaseService: ObservableObject {
     private let db = Firestore.firestore()
     private var listeners: [String: ListenerRegistration] = [:]
@@ -19,6 +18,14 @@ public class DatabaseService: ObservableObject {
         listeners[key] = listener
     }
     
+    // Helper method to remove a specific listener
+    public func removeListener(for key: String) {
+        if let listener = listeners[key] {
+            listener.remove()
+            listeners.removeValue(forKey: key)
+        }
+    }
+    
     // Helper method for type-safe dictionary updates
     private func updateData<T: Sendable>(_ data: [String: T], at ref: DocumentReference) async throws {
         try await ref.updateData(data as [String: Any])
@@ -33,13 +40,16 @@ public class DatabaseService: ObservableObject {
     }
     
     public func getProperty(id: String) async throws -> Property {
+        // Added guard to ensure id is not empty
+        guard !id.isEmpty else {
+            throw NSError(domain: "DatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Property id cannot be empty"])
+        }
         let docRef = db.collection("properties").document(id)
         let snapshot = try await docRef.getDocument()
         
-        guard let property = try? snapshot.data(as: Property.self) else {
-            throw NSError(domain: "DatabaseService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Property not found"])
-        }
-        
+        // Decode property and attach the document id
+        var property = try snapshot.data(as: Property.self)
+        property.id = snapshot.documentID
         return property
     }
     
@@ -129,6 +139,7 @@ public class DatabaseService: ObservableObject {
     
     // MARK: - Favorites
     
+    @MainActor
     public func togglePropertyFavorite(userId: String, propertyId: String, isFavorite: Bool) async throws {
         let batch = db.batch()
         
@@ -156,6 +167,7 @@ public class DatabaseService: ObservableObject {
         try await batch.commit()
     }
     
+    @MainActor
     public func getUserFavorites(userId: String) -> AnyPublisher<[Property], Error> {
         Future { [weak self] promise in
             guard let self = self else { return }
@@ -213,83 +225,136 @@ public class DatabaseService: ObservableObject {
     
     // MARK: - Messages
     
-    public func createOrGetConversation(propertyId: String, tenantId: String, managerId: String) async throws -> String {
-        // Check if conversation already exists
-        let querySnapshot = try await db.collection("conversations")
+    @MainActor
+    public func createOrGetConversation(propertyId: String, tenantId: String, managerId: String, videoId: String? = nil) async throws -> String {
+        print("🔄 DatabaseService: Checking for existing channel - videoId: \(videoId ?? ""), buyerId: \(tenantId)")
+        
+        // Check if chat channel already exists
+        let querySnapshot = try await db.collection("chatChannels")
             .whereField("propertyId", isEqualTo: propertyId)
-            .whereField("participants", arrayContainsAny: [tenantId, managerId])
+            .whereField("buyerId", isEqualTo: tenantId)
+            .whereField("sellerId", isEqualTo: managerId)
             .getDocuments()
         
         if let existingDoc = querySnapshot.documents.first {
+            print("ℹ️ DatabaseService: Channel already exists")
             return existingDoc.documentID
         }
         
-        // Create new conversation
-        let conversation = Conversation.create(propertyId: propertyId, tenantId: tenantId, managerId: managerId)
-        let docRef = db.collection("conversations").document(conversation.id)
-        try docRef.setData(from: conversation)
-        return conversation.id
+        print("🆕 DatabaseService: Creating new channel")
+        
+        // Get property info to create chat title
+        let property = try await getProperty(id: propertyId)
+        let chatTitle: String
+        if let videoId = videoId,
+           let video = try? await getVideo(id: videoId) {
+            chatTitle = "\(property.title): \(video.title)"
+        } else {
+            chatTitle = property.title
+        }
+        
+        // Create new chat channel using ChatChannel model
+        var channel = ChatChannel(
+            buyerId: tenantId,
+            sellerId: managerId,
+            propertyId: propertyId,
+            videoId: videoId ?? "",
+            chatTitle: chatTitle,
+            lastMessage: nil,
+            lastMessageTimestamp: nil,
+            serverTimestamp: Timestamp(date: Date()),
+            lastSenderId: nil,
+            isRead: true
+        )
+        let channelId = channel.id ?? UUID().uuidString
+        channel.id = channelId
+        let docRef = db.collection("chatChannels").document(channelId)
+        print("📝 DatabaseService: Setting data for channel \(channelId)")
+        try docRef.setData(from: channel)
+        print("✅ DatabaseService: Channel created")
+        return channelId
     }
     
-    public func sendMessage(_ message: Message) async throws {
+    @MainActor
+    public func sendMessage(_ message: ChatMessage) async throws {
+        print("📤 DatabaseService: Sending message in channel \(message.channelId)")
+        
+        let messageRef = db.collection("chatMessages").document(message.id ?? UUID().uuidString)
+        let messageId = message.id ?? UUID().uuidString
+        
         let batch = db.batch()
         
-        // Add message
-        let messageRef = db.collection("messages").document(message.id)
-        try batch.setData(from: message, forDocument: messageRef)
+        // Prepare message data with server timestamp for message.timestamp
+        var messageData: [String: Any] = [
+            "id": messageId,
+            "channelId": message.channelId,
+            "senderId": message.senderId,
+            "text": message.text
+        ]
+        if let attachmentUrl = message.attachmentUrl {
+            messageData["attachmentUrl"] = attachmentUrl
+        }
+        if let attachmentType = message.attachmentType {
+            messageData["attachmentType"] = attachmentType
+        }
+        messageData["timestamp"] = FieldValue.serverTimestamp()
         
-        // Update conversation
-        let conversationRef = db.collection("conversations").document(message.conversationId)
+        batch.setData(messageData, forDocument: messageRef)
+        
+        // Update chat channel with server timestamp for lastMessageTimestamp
+        let channelRef = db.collection("chatChannels").document(message.channelId)
         batch.updateData([
             "lastMessage": message.text,
-            "lastMessageTimestamp": message.timestamp,
-            "hasUnreadMessages": true
-        ], forDocument: conversationRef)
+            "lastMessageTimestamp": FieldValue.serverTimestamp(),
+            "lastSenderId": message.senderId,
+            "isRead": false
+        ], forDocument: channelRef)
         
         try await batch.commit()
+        print("✅ DatabaseService: Message sent and channel updated")
     }
     
-    public func getMessagesStream(conversationId: String) -> AnyPublisher<[Message], Error> {
-        Future { [weak self] promise in
-            guard let self = self else { return }
-            
-            let listener = self.db.collection("messages")
-                .whereField("conversationId", isEqualTo: conversationId)
-                .order(by: "timestamp", descending: true)
-                .addSnapshotListener { querySnapshot, error in
-                    if let error = error {
-                        promise(.failure(error))
-                        return
-                    }
-                    
-                    guard let documents = querySnapshot?.documents else {
-                        promise(.success([]))
-                        return
-                    }
-                    
-                    do {
-                        let messages = try documents.map { try $0.data(as: Message.self) }
-                        promise(.success(messages))
-                    } catch {
-                        promise(.failure(error))
-                    }
+    @MainActor
+    public func getMessagesStream(channelId: String) -> AnyPublisher<[ChatMessage], Error> {
+        let subject = PassthroughSubject<[ChatMessage], Error>()
+
+        let listener = self.db.collection("chatMessages")
+            .whereField("channelId", isEqualTo: channelId)
+            .order(by: "timestamp", descending: true)
+            .addSnapshotListener { querySnapshot, error in
+                if let error = error {
+                    subject.send(completion: .failure(error))
+                    return
                 }
-            
-            self.store(listener: listener, for: "messages-\(conversationId)")
-        }
-        .eraseToAnyPublisher()
+
+                guard let documents = querySnapshot?.documents else {
+                    subject.send([])
+                    return
+                }
+
+                do {
+                    let messages = try documents.map { try $0.data(as: ChatMessage.self) }
+                    subject.send(messages)
+                } catch {
+                    subject.send(completion: .failure(error))
+                }
+            }
+
+        self.store(listener: listener, for: "messages-\(channelId)")
+        return subject.eraseToAnyPublisher()
     }
     
-    public func getConversationsStream(userId: String) -> AnyPublisher<[Conversation], Error> {
+    @MainActor
+    public func getConversationsStream(userId: String) -> AnyPublisher<[ChatChannel], Error> {
         Future { [weak self] promise in
             guard let self = self else { return }
             
-            let listener = self.db.collection("conversations")
+            let listener = self.db.collection("chatChannels")
                 .whereFilter(Filter.orFilter([
-                    Filter.whereField("tenantId", isEqualTo: userId),
-                    Filter.whereField("managerId", isEqualTo: userId)
+                    Filter.whereField("buyerId", isEqualTo: userId),
+                    Filter.whereField("sellerId", isEqualTo: userId)
                 ]))
-                .order(by: "lastMessageAt", descending: true)
+                .order(by: "serverTimestamp", descending: true)
                 .addSnapshotListener { querySnapshot, error in
                     if let error = error {
                         promise(.failure(error))
@@ -302,8 +367,8 @@ public class DatabaseService: ObservableObject {
                     }
                     
                     do {
-                        let conversations = try documents.map { try $0.data(as: Conversation.self) }
-                        promise(.success(conversations))
+                        let channels = try documents.map { try $0.data(as: ChatChannel.self) }
+                        promise(.success(channels))
                     } catch {
                         promise(.failure(error))
                     }
@@ -315,10 +380,15 @@ public class DatabaseService: ObservableObject {
     }
     
     @MainActor
-    public func markConversationAsRead(conversationId: String) async throws {
-        let ref = db.collection("conversations").document(conversationId)
-        let updateData: [String: Any] = ["hasUnreadMessages": false]
-        try await ref.updateData(updateData)
+    public func markChannelAsRead(channelId: String, forUserId currentUserId: String) async throws {
+        let ref = db.collection("chatChannels").document(channelId)
+        let snapshot = try await ref.getDocument()
+        guard let channel = try? snapshot.data(as: ChatChannel.self),
+              channel.lastSenderId != currentUserId else {
+            return // Don't mark as read if the last message was sent by the current user
+        }
+        
+        try await ref.updateData(["isRead": true])
     }
     
     // MARK: - Video Methods
@@ -446,6 +516,13 @@ public class DatabaseService: ObservableObject {
         try db.collection("videos").document(id).setData(from: video, merge: true)
     }
     
+    // Updates a video document with a targeted update using a dictionary of fields.
+    // This method is recommended for actions such as toggling likes,
+    // where only specific fields ('likeCount' and 'likedBy') need to be updated.
+    public func updateVideo(id: String, data: [String: Any]) async throws {
+        try await db.collection("videos").document(id).updateData(data)
+    }
+    
     public func deleteVideo(id: String) async throws {
         try await db.collection("videos").document(id).delete()
     }
@@ -459,10 +536,6 @@ public class DatabaseService: ObservableObject {
         var video = try Firestore.Decoder().decode(Video.self, from: data)
         video.id = snapshot.documentID
         return video
-    }
-    
-    public func updateVideo(id: String, data: [String: Any]) async throws {
-        try await db.collection("videos").document(id).updateData(data)
     }
     
     // One-time fetch of properties

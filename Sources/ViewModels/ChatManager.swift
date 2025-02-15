@@ -34,8 +34,8 @@ public class ChatManager: ObservableObject {
         try await chatService.createNewChannel(forVideo: video)
     }
     
-    public func sendMessage(_ content: String, in channelId: String) async throws {
-        try await chatService.sendMessage(content, in: channelId)
+    public func sendMessage(_ text: String, in channelId: String) async throws {
+        try await chatService.sendMessage(text, in: channelId)
     }
     
     public func observeMessages(in channelId: String) {

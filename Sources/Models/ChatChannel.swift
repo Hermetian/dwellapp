@@ -1,5 +1,4 @@
 import FirebaseFirestore
-import FirebaseAuth
 import Foundation
 
 public struct ChatChannel: Identifiable, Codable {
@@ -8,12 +7,13 @@ public struct ChatChannel: Identifiable, Codable {
     public let sellerId: String
     public let propertyId: String
     public let videoId: String
-    public let propertySummary: String?
+    public var chatTitle: String?
     public var lastMessage: String?
     public var lastMessageTimestamp: Date?
     @ServerTimestamp public var serverTimestamp: Timestamp?
-    public var hasUnreadMessages: Bool
-    public var otherUserName: String?
+    public var lastSenderId: String?
+    public var isRead: Bool
+    public var otherUserName: String?  // This will be populated in memory but not stored in Firestore
     
     private enum CodingKeys: String, CodingKey {
         case id
@@ -21,12 +21,13 @@ public struct ChatChannel: Identifiable, Codable {
         case sellerId
         case propertyId
         case videoId
-        case propertySummary
+        case chatTitle
         case lastMessage
         case lastMessageTimestamp
         case serverTimestamp
-        case hasUnreadMessages
-        case otherUserName
+        case lastSenderId
+        case isRead
+        // Note: otherUserName is intentionally omitted from CodingKeys
     }
     
     public init(
@@ -35,34 +36,31 @@ public struct ChatChannel: Identifiable, Codable {
         sellerId: String,
         propertyId: String,
         videoId: String,
-        propertySummary: String?,
+        chatTitle: String? = nil,
         lastMessage: String? = nil,
         lastMessageTimestamp: Date? = nil,
         serverTimestamp: Timestamp? = nil,
-        hasUnreadMessages: Bool = false,
-        otherUserName: String? = nil
+        lastSenderId: String? = nil,
+        isRead: Bool = true
     ) {
         self.id = id
         self.buyerId = buyerId
         self.sellerId = sellerId
         self.propertyId = propertyId
         self.videoId = videoId
-        self.propertySummary = propertySummary
+        self.chatTitle = chatTitle
         self.lastMessage = lastMessage
         self.lastMessageTimestamp = lastMessageTimestamp
         self.serverTimestamp = serverTimestamp
-        self.hasUnreadMessages = hasUnreadMessages
-        self.otherUserName = otherUserName
+        self.lastSenderId = lastSenderId
+        self.isRead = isRead
     }
     
-    public var isSeller: Bool {
-        // Compare with current user ID from AuthService
-        guard let currentUserId = Auth.auth().currentUser?.uid else { return false }
+    public func isSeller(currentUserId: String) -> Bool {
         return currentUserId == sellerId
     }
     
-    public var otherUserId: String {
-        guard let currentUserId = Auth.auth().currentUser?.uid else { return "" }
+    public func otherUserId(currentUserId: String) -> String {
         return currentUserId == sellerId ? buyerId : sellerId
     }
 } 

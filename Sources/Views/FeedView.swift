@@ -10,6 +10,7 @@ import FirebaseAuth
 public struct FeedView: View {
     @EnvironmentObject private var appViewModel: AppViewModel
     @StateObject private var videoFeedVM = VideoFeedViewModel()
+    private let databaseService = DatabaseService()
     @State private var showFilters = false
     @State private var cancellables = Set<AnyCancellable>()
     @State private var selectedProperty: Property?
@@ -35,7 +36,7 @@ public struct FeedView: View {
                 GeometryReader { geometry in
                     ScrollView(.vertical) {
                         TabView(selection: $videoFeedVM.currentIndex) {
-                            ForEach(Array(videoFeedVM.videos.enumerated()), id: \ .element.id) { index, video in
+                            ForEach(Array(videoFeedVM.videos.enumerated()), id: \ .offset) { index, video in
                                 VideoPlayerCard(
                                     video: video,
                                     cardIndex: index,
@@ -50,7 +51,10 @@ public struct FeedView: View {
                                             do {
                                                 let db = Firestore.firestore()
                                                 let docRef = db.collection("properties").document(propertyId)
-                                                let prop = try await docRef.getDocument(as: Property.self)
+                                                let snapshot = try await docRef.getDocument()
+                                                var prop = try snapshot.data(as: Property.self)
+                                                // Attach the document ID from Firestore
+                                                prop.id = snapshot.documentID
                                                 selectedProperty = prop
                                             } catch {
                                                 print("Error loading property: \(error)")
@@ -93,11 +97,35 @@ public struct FeedView: View {
         .onAppear {
             setupFilterSubscription()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .mainFeedVisibilityChanged)) { notification in
+            if let isVisible = notification.userInfo?["isVisible"] as? Bool {
+                if !isVisible {
+                    // Pause all videos and close listeners when feed is not visible
+                    if let currentVideo = videoFeedVM.videos.indices.contains(videoFeedVM.currentIndex) ? videoFeedVM.videos[videoFeedVM.currentIndex] : nil,
+                       let videoId = currentVideo.id {
+                        // Post notification to pause the current video
+                        NotificationCenter.default.post(
+                            name: .mainFeedOverlayVisibilityChanged,
+                            object: nil,
+                            userInfo: ["isVisible": true]
+                        )
+                    }
+                }
+            }
+        }
         .onChange(of: showFilters) { isVisible in
             NotificationCenter.default.post(
                 name: .mainFeedOverlayVisibilityChanged,
                 object: nil,
                 userInfo: ["isVisible": isVisible]
+            )
+        }
+        .onChange(of: selectedProperty) { newValue in
+            let isOverlayVisible = (newValue != nil)
+            NotificationCenter.default.post(
+                name: .mainFeedOverlayVisibilityChanged,
+                object: nil,
+                userInfo: ["isVisible": isOverlayVisible]
             )
         }
         .toolbar {
@@ -264,6 +292,10 @@ private struct FilterSheet: View {
 private struct VideoPlayerCard: View {
     @State private var currentVideo: Video
     let onPropertyTap: () -> Void
+    @EnvironmentObject private var appViewModel: AppViewModel
+    @StateObject private var playerVM = VideoPlayerViewModel()
+    @EnvironmentObject private var chatViewModel: ChatViewModel
+    private let databaseService = DatabaseService()
 
     // New properties for active index tracking
     let cardIndex: Int
@@ -275,13 +307,13 @@ private struct VideoPlayerCard: View {
     let viewPropertyDisabled: Bool
     @Environment(\.scenePhase) private var scenePhase
 
-    @StateObject private var playerVM = VideoPlayerViewModel()
-    @EnvironmentObject private var chatViewModel: ChatViewModel
     @State private var isLoading = true
-    @State private var showChatAlert = false
+    @State private var showingChat = false
     @AppStorage("hasSeenChatTip") private var hasSeenChatTip = false
     @State private var showChatTip = false
     @State private var autoPaused: Bool = false
+    @State private var errorMessage = ""
+    @State private var showError = false
 
     init(video: Video, cardIndex: Int, activeIndex: Binding<Int>, viewPropertyDisabled: Bool, onPropertyTap: @escaping () -> Void) {
         self.onPropertyTap = onPropertyTap
@@ -403,7 +435,7 @@ private struct VideoPlayerCard: View {
                 VStack {
                     Spacer()
                     
-                    HStack(alignment: .bottom, spacing: 20) {
+                    HStack(alignment: .bottom, spacing: -5) {
                         // Left side - Video info
                         VStack(alignment: .leading, spacing: 8) {
                             Text(currentVideo.title)
@@ -430,15 +462,54 @@ private struct VideoPlayerCard: View {
                             }
                         }
                         .padding()
-                        .frame(width: geometry.size.width * 0.8, alignment: .leading)
+                        .frame(width: geometry.size.width * 0.8 - 15, alignment: .leading)
                         
                         // Right side - Action buttons
                         VStack(spacing: 20) {
+                            Button {
+                                Task {
+                                    do {
+                                        // Check current like state for the video
+                                        let isCurrentlyLiked = appViewModel.videoViewModel.likedVideos.contains { $0.id == currentVideo.id }
+                                        
+                                        // Toggle the video like
+                                        try await appViewModel.videoViewModel.toggleVideoLike(
+                                            videoId: currentVideo.id ?? "",
+                                            userId: appViewModel.authViewModel.currentUser?.id ?? ""
+                                        )
+                                        
+                                        // If it's a property video and the video was not previously liked (i.e., this like is new),
+                                        // then also favorite the associated property, if not already favorited.
+                                        if !isCurrentlyLiked, let propertyId = currentVideo.propertyId, !propertyId.isEmpty {
+                                            let isAlreadyFavorited = appViewModel.propertyViewModel.favoriteProperties.contains { $0.id == propertyId }
+                                            if !isAlreadyFavorited {
+                                                try await appViewModel.propertyViewModel.toggleFavorite(
+                                                    propertyId: propertyId,
+                                                    userId: appViewModel.authViewModel.currentUser?.id ?? ""
+                                                )
+                                            }
+                                        }
+                                    } catch {
+                                        errorMessage = error.localizedDescription
+                                        showError = true
+                                    }
+                                }
+                            } label: {
+                                VStack {
+                                    Image(systemName: appViewModel.videoViewModel.likedVideos.contains { $0.id == currentVideo.id } ? "heart.fill" : "heart")
+                                        .font(.title)
+                                        .foregroundColor(appViewModel.videoViewModel.likedVideos.contains { $0.id == currentVideo.id } ? .red : .white)
+                                    Text("Like")
+                                        .font(.caption)
+                                }
+                                .frame(width: 60, height: 60)
+                                .background(Color.white.opacity(0.2))
+                                .cornerRadius(8)
+                            }
+
                             if isPropertyVideo && !initialPropertyId.isEmpty && currentVideo.userId != Auth.auth().currentUser?.uid {
                                 Button {
-                                    showChatAlert = true
-                                    hasSeenChatTip = true
-                                    showChatTip = false
+                                    showingChat = true
                                 } label: {
                                     VStack {
                                         Image(systemName: "message.fill")
@@ -450,37 +521,10 @@ private struct VideoPlayerCard: View {
                                     .background(Color.white.opacity(0.2))
                                     .cornerRadius(8)
                                 }
-                                .overlay {
-                                    if !hasSeenChatTip && showChatTip {
-                                        VStack {
-                                            Text("👋 Tap here to chat about this property!")
-                                                .font(.caption)
-                                                .foregroundColor(.white)
-                                                .padding(8)
-                                                .background(Color.blue)
-                                                .cornerRadius(8)
-                                        }
-                                        .offset(x: -120, y: 0)
-                                    }
-                                }
-                            }
-                            
-                            Button {
-                                // Share functionality
-                            } label: {
-                                VStack {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.title)
-                                    Text("Share")
-                                        .font(.caption)
-                                }
-                                .frame(width: 60, height: 60)
-                                .background(Color.white.opacity(0.2))
-                                .cornerRadius(8)
                             }
                         }
                         .foregroundColor(.white)
-                        .padding(.trailing, 20)
+                        .padding(.leading, -15)
                     }
                     .padding(.bottom, 30)
                     .background(
@@ -503,7 +547,7 @@ private struct VideoPlayerCard: View {
             }
             playerVM.setOverlayVisible(false)
         }
-        .onChange(of: showChatAlert) { newValue in
+        .onChange(of: showingChat) { newValue in
             playerVM.setOverlayVisible(newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: .mainFeedOverlayVisibilityChanged)) { notification in
@@ -540,17 +584,20 @@ private struct VideoPlayerCard: View {
                 }
             }
         }
-        .alert(isPresented: $showChatAlert) {
-            Alert(
-                title: Text("Start Chat"),
-                message: Text("Would you like to start a conversation about this property?"),
-                primaryButton: .default(Text("Yes")) {
-                    Task {
-                        await chatViewModel.createChannel(forVideo: currentVideo)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
+        .sheet(isPresented: $showingChat) {
+            NavigationView {
+                MessagingView(
+                    propertyId: currentVideo.propertyId ?? "",
+                    managerId: currentVideo.userId,
+                    videoId: currentVideo.id
+                )
+                .environmentObject(appViewModel)
+            }
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
         }
     }
     
@@ -584,4 +631,5 @@ private struct VideoPlayerCard: View {
 // Add extension for the notification name
 extension Notification.Name {
     static let mainFeedOverlayVisibilityChanged = Notification.Name("mainFeedOverlayVisibilityChanged")
+    static let mainFeedVisibilityChanged = Notification.Name("mainFeedVisibilityChanged")
 } 

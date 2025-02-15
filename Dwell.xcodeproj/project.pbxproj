@@ -29,7 +29,6 @@
 		268AD8C0E18D231D62FFE52E /* PropertyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8B50B0035819D2EEE5E5DE /* PropertyDetailView.swift */; };
 		26A33E0185920CDF34109AF1 /* VideoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49F91284FB6227673946683 /* VideoViewModel.swift */; };
 		2DB3974C52B86A1BDA2DAE0E /* ViewModels_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F45CD25EF0080CCFC4B33183 /* ViewModels_iOS.framework */; };
-		2DE321C8B4D37EC2F53D89AD /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7567C1D9A5649E80EE85057A /* Message.swift */; };
 		2DFB1FC94B51C1C168408BF5 /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AF25B96B9C8F5EA8102BDD /* SignUpView.swift */; };
 		2E597EEE670B466E71272AFF /* ClipTrimControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFCE76A4FB1DC06FAEB29403 /* ClipTrimControls.swift */; };
 		2E834AC9F08A27EC205B62C8 /* ChatListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7908B17974152EFA54EC54A0 /* ChatListView.swift */; };
@@ -80,7 +79,6 @@
 		789AAFB5E24A570DD3DEA0DE /* ChatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83EAA3A7457F73EE232E5098 /* ChatManager.swift */; };
 		7938866374232A8EB30E7A13 /* Views_macOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34E3BE063EF49C7236F6D514 /* Views_macOS.framework */; };
 		7A0687070F599F64CCC913AD /* PropertyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4A237FF6DDD90BAF3FCACD /* PropertyCard.swift */; };
-		7B330345AFA1DA3C27022114 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7567C1D9A5649E80EE85057A /* Message.swift */; };
 		7BD92BFEA0610F2236C3CAF5 /* LinkVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8138B7F391D7AB97BCC1FD9F /* LinkVideoView.swift */; };
 		7E3D9C00E9EAC3662BA9C109 /* DwellApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34D4A089CCD4D0485146AE0 /* DwellApp.swift */; };
 		80BBE46C18093A28181BB23A /* PropertyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4A237FF6DDD90BAF3FCACD /* PropertyCard.swift */; };
@@ -316,7 +314,6 @@
 		5FCA750307709995AC4D3A1D /* PropertyRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyRowView.swift; sourceTree = "<group>"; };
 		6C3E0326AA95633E25E8F4F7 /* Dwell_macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dwell_macOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6DB5C50FC13AA5B85D4BE073 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
-		7567C1D9A5649E80EE85057A /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		7908B17974152EFA54EC54A0 /* ChatListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatListView.swift; sourceTree = "<group>"; };
 		7DD042879A66C7834F4FB239 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
 		8138B7F391D7AB97BCC1FD9F /* LinkVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkVideoView.swift; sourceTree = "<group>"; };
@@ -478,7 +475,6 @@
 				AF9A6EA4A79498B9E24916DC /* ChatChannel.swift */,
 				451C9604467DD2DF0BB8412B /* ChatMessage.swift */,
 				7DD042879A66C7834F4FB239 /* Conversation.swift */,
-				7567C1D9A5649E80EE85057A /* Message.swift */,
 				092EC2065E33221CB3794C05 /* Property.swift */,
 				84B959C81FECE4A46F52D052 /* PropertyVideo.swift */,
 				C76A9346710659F40B5CD95A /* User.swift */,
@@ -924,7 +920,6 @@
 				BAA7FD70624E537C0625E317 /* DatabaseService.swift in Sources */,
 				72D654D176E58E2248EA90D4 /* FirebaseExtensions.swift in Sources */,
 				5E46D729D9202CFA58422472 /* GoogleCloudService.swift in Sources */,
-				7B330345AFA1DA3C27022114 /* Message.swift in Sources */,
 				37B35FEBCF6630FF303AEA9D /* Property.swift in Sources */,
 				54F3CFD2F660CFDABA570E4B /* PropertyVideo.swift in Sources */,
 				6359443C41E3200BA75AEBFA /* StorageService.swift in Sources */,
@@ -1026,7 +1021,6 @@
 				9DB6000EFF6889D6BBE91B07 /* DatabaseService.swift in Sources */,
 				D0DC0439D13FD34981EA9254 /* FirebaseExtensions.swift in Sources */,
 				CC5546A2D782901DE83B8F50 /* GoogleCloudService.swift in Sources */,
-				2DE321C8B4D37EC2F53D89AD /* Message.swift in Sources */,
 				31A78F21CEF818D1B31D3B4E /* Property.swift in Sources */,
 				EA8239D4283CD76505231841 /* PropertyVideo.swift in Sources */,
 				59369B4EC4E4F87F3AD3D446 /* StorageService.swift in Sources */,

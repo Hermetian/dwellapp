@@ -111,18 +111,54 @@ public final class PropertyViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    // Consolidated property-level favorite toggling. All UI actions (from PropertyCard, PropertyDetailView, or even video-level controls) should call this method.
     public func toggleFavorite(propertyId: String, userId: String) async throws {
+        // CHECKLIST ITEM 2: Ensure valid propertyId
+        guard !propertyId.isEmpty else {
+            throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Property ID is missing. Cannot toggle favorite."])
+        }
         guard !isLoading else { throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation in progress"]) }
         isLoading = true
         error = nil
         
         do {
             let isFavorite = favoriteProperties.contains { $0.id == propertyId }
+            let newFavoriteState = !isFavorite
+            
             try await databaseService.togglePropertyFavorite(
                 userId: userId,
                 propertyId: propertyId,
-                isFavorite: !isFavorite
+                isFavorite: newFavoriteState
             )
+            
+            // If the property was just favorited (not unfavorited), create/update conversation
+            if newFavoriteState {
+                // Get the property to access its managerId
+                if let property = properties.first(where: { $0.id == propertyId }) {
+                    // Only create a conversation if the user is not liking their own property
+                    if property.managerId != userId {
+                        // Create or get conversation directly through DatabaseService
+                        let channelId = try await databaseService.createOrGetConversation(
+                            propertyId: propertyId,
+                            tenantId: userId,
+                            managerId: property.managerId,
+                            videoId: property.videoIds.first
+                        )
+                        
+                        // Create a message expressing interest in the property
+                        let action = property.type.lowercased().contains("rent") ? "renting" : "buying"
+                        let message = ChatMessage(
+                            id: UUID().uuidString,
+                            channelId: channelId,
+                            senderId: userId,
+                            text: "Hello, I'm interested in \(action) your \(property.title)"
+                        )
+                        
+                        // Send message directly through DatabaseService
+                        try await databaseService.sendMessage(message)
+                    }
+                }
+            }
             
             // Refresh favorites
             loadFavorites(for: userId)
