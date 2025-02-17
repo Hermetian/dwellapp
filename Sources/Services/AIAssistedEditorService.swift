@@ -1,6 +1,8 @@
 import Foundation
 import AVFoundation
 import CoreImage
+import Logging
+import FirebaseCrashlytics
 #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 import UIKit
 #endif
@@ -61,35 +63,61 @@ public struct AIAssistedEditSuggestion {
     public let confidence: Float
 }
 
+public struct VideoFeatures {
+    public let title: String
+    public let description: String
+    public let amenities: [String]
+}
+
 // AI Assisted Editor Service that integrates simulated LLM calls with our video functions.
 public class AIAssistedEditorService {
     private let videoService: VideoService
     private let cloudService: GoogleCloudService
+    private let logger = Logger(label: "AIAssistedEditorService")
     
     public init(videoService: VideoService) throws {
         self.videoService = videoService
-        self.cloudService = try GoogleCloudService()
+        logger.info("Initializing AIAssistedEditorService")
+        do {
+            self.cloudService = try GoogleCloudService()
+            logger.info("Successfully initialized GoogleCloudService")
+        } catch {
+            logger.error("Failed to initialize GoogleCloudService: \(error.localizedDescription)")
+            Crashlytics.crashlytics().record(error: error)
+            throw error
+        }
     }
     
     // Analyzes video content (scene segmentation, transcript & quality issues)
     public func analyzeVideoContent(videoURL: URL) async throws -> AIVideoAnalysis {
-        let analysisResult = try await cloudService.analyzeVideo(url: videoURL)
-        return AIVideoAnalysis(
-            scenes: analysisResult.scenes,
-            transcript: analysisResult.transcript,
-            qualityIssues: analysisResult.qualityIssues
-        )
+        logger.info("Starting video content analysis for \(videoURL.lastPathComponent)")
+        do {
+            let analysisResult = try await cloudService.analyzeVideo(url: videoURL)
+            logger.info("Video analysis completed successfully with \(analysisResult.scenes.count) scenes detected")
+            return AIVideoAnalysis(
+                scenes: analysisResult.scenes,
+                transcript: analysisResult.transcript,
+                qualityIssues: analysisResult.qualityIssues
+            )
+        } catch {
+            logger.error("Video content analysis failed: \(error.localizedDescription)")
+            Crashlytics.crashlytics().record(error: error)
+            throw error
+        }
     }
     
     // Generates a list of recommended edits based on the analysis.
     public func generateEditingRecommendations(analysis: AIVideoAnalysis) async throws -> [AIAssistedEditSuggestion] {
+        logger.info("Generating editing recommendations based on video analysis")
         var suggestions = [AIAssistedEditSuggestion]()
 
         // Process quality issues using advanced heuristics
         if let issues = analysis.qualityIssues, !issues.isEmpty {
+            logger.info("Processing \(issues.count) quality issues")
             for issue in issues {
                 if issue.lowercased().contains("scene change") {
                     let speedAdjustment: Float = issue.components(separatedBy: ",").count > 1 ? 0.75 : 0.85
+                    logger.info("Suggesting speed adjustment for rapid scene changes")
                     suggestions.append(AIAssistedEditSuggestion(
                         type: .speedAdjustment(rate: speedAdjustment),
                         suggestionText: "Adjust video speed to smooth out rapid scene changes",
@@ -99,6 +127,7 @@ public class AIAssistedEditorService {
                 
                 if issue.lowercased().contains("audio") {
                     if let scene = analysis.scenes.first(where: { $0.description.lowercased().contains("poor audio") || $0.description.lowercased().contains("low audio") }) {
+                        logger.info("Suggesting trim for poor audio segment")
                         suggestions.append(AIAssistedEditSuggestion(
                             type: .trim(start: scene.startTime, end: scene.endTime),
                             suggestionText: "Trim segment with poor audio quality for better overall sound",
@@ -111,19 +140,26 @@ public class AIAssistedEditorService {
 
         // Analyze transcript sentiment using actual sentiment score
         if let transcript = analysis.transcript, !transcript.isEmpty {
-            let sentimentAnalysis = try await cloudService.analyzeContent(text: transcript)
-            if sentimentAnalysis.score >= 0.8 {
-                suggestions.append(AIAssistedEditSuggestion(
-                    type: .filter(.brightness(0.1)),
-                    suggestionText: "Boost brightness to accentuate positive moments",
-                    confidence: 0.75
-                ))
-            } else if sentimentAnalysis.score <= 0.2 {
-                suggestions.append(AIAssistedEditSuggestion(
-                    type: .filter(.contrast(0.1)),
-                    suggestionText: "Enhance contrast to emphasize dramatic moments",
-                    confidence: 0.75
-                ))
+            logger.info("Analyzing transcript sentiment")
+            do {
+                let sentimentAnalysis = try await cloudService.analyzeContent(text: transcript)
+                logger.info("Sentiment analysis completed with score: \(sentimentAnalysis.score)")
+                if sentimentAnalysis.score >= 0.8 {
+                    suggestions.append(AIAssistedEditSuggestion(
+                        type: .filter(.brightness(0.1)),
+                        suggestionText: "Boost brightness to accentuate positive moments",
+                        confidence: 0.75
+                    ))
+                } else if sentimentAnalysis.score <= 0.2 {
+                    suggestions.append(AIAssistedEditSuggestion(
+                        type: .filter(.contrast(0.1)),
+                        suggestionText: "Enhance contrast to emphasize dramatic moments",
+                        confidence: 0.75
+                    ))
+                }
+            } catch {
+                logger.error("Sentiment analysis failed: \(error.localizedDescription)")
+                Crashlytics.crashlytics().record(error: error)
             }
         }
 
@@ -156,13 +192,16 @@ public class AIAssistedEditorService {
             ))
         }
 
+        logger.info("Generated \(suggestions.count) editing recommendations")
         return suggestions
     }
     
     // Interprets a high-level editing command and applies changes. For example, creating a highlight reel.
     public func applyEditingCommand(command: String, on videoURL: URL) async throws -> URL {
+        logger.info("Processing editing command: \(command)")
         let loweredCommand = command.lowercased()
         if loweredCommand.contains("highlight reel") {
+            logger.info("Creating highlight reel")
             let analysis = try await analyzeVideoContent(videoURL: videoURL)
 
             // Select scenes with duration between 3 and 10 seconds and non-empty descriptions, sorted by duration descending
@@ -174,6 +213,7 @@ public class AIAssistedEditorService {
             }
 
             let highlightScenes = Array(candidates.prefix(5))
+            logger.info("Selected \(highlightScenes.count) scenes for highlight reel")
 
             // Create video clips for selected scenes
             var clips: [VideoService.VideoClip] = []
@@ -183,10 +223,19 @@ public class AIAssistedEditorService {
                 clips.append(clip)
             }
 
-            return try await videoService.stitchClips(clips)
+            do {
+                let result = try await videoService.stitchClips(clips)
+                logger.info("Successfully created highlight reel")
+                return result
+            } catch {
+                logger.error("Failed to create highlight reel: \(error.localizedDescription)")
+                Crashlytics.crashlytics().record(error: error)
+                throw error
+            }
         }
 
         if loweredCommand.contains("enhance") {
+            logger.info("Applying enhancement filters")
             var enhancedURL = videoURL
 
             // Define filter keywords and corresponding filters
@@ -198,68 +247,138 @@ public class AIAssistedEditorService {
 
             for (keyword, filter) in filters {
                 if loweredCommand.contains(keyword) {
-                    enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: filter)
+                    logger.info("Applying \(keyword) filter")
+                    do {
+                        enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: filter)
+                    } catch {
+                        logger.error("Failed to apply \(keyword) filter: \(error.localizedDescription)")
+                        Crashlytics.crashlytics().record(error: error)
+                        throw error
+                    }
                 }
             }
 
             // If no specific filter was applied, use a default enhancement
             if enhancedURL == videoURL {
-                enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: .brightness(0.05))
+                logger.info("Applying default brightness enhancement")
+                do {
+                    enhancedURL = try await videoService.applyFilter(to: enhancedURL, filter: .brightness(0.05))
+                } catch {
+                    logger.error("Failed to apply default enhancement: \(error.localizedDescription)")
+                    Crashlytics.crashlytics().record(error: error)
+                    throw error
+                }
             }
 
             return enhancedURL
         }
 
-        // Default to returning original URL if command not recognized
+        logger.info("No matching command found, returning original video")
         return videoURL
     }
     
     // Generates content suggestions (title, description, amenities) based on video content and property info.
     public func getContentSuggestions(for videoURL: URL, property: Property?) async throws -> (title: String, description: String, amenities: [String]) {
-        let videoAnalysis = try await analyzeVideoContent(videoURL: videoURL)
-        
-        var titleComponents: [String] = []
-        for scene in videoAnalysis.scenes where scene.description.contains("exterior") || scene.description.contains("interior") {
-            titleComponents.append(scene.description)
-        }
-        
-        if let transcript = videoAnalysis.transcript {
-            let sentimentAnalysis = try await cloudService.analyzeContent(text: transcript)
+        logger.info("Generating content suggestions for \(videoURL.lastPathComponent)")
+        do {
+            let videoAnalysis = try await analyzeVideoContent(videoURL: videoURL)
             
-            let title = titleComponents.isEmpty ? 
-                "Stunning Property Tour" : 
-                "Beautiful \(titleComponents.first ?? "Home") Showcase"
-            
-            let description = sentimentAnalysis.score > 0 ?
-                "Experience this exceptional property featuring \(titleComponents.joined(separator: ", ").lowercased()). \(transcript.prefix(200))..." :
-                "Discover this unique property with \(titleComponents.joined(separator: ", ").lowercased()). \(transcript.prefix(200))..."
-            
-            // Extract amenities from scene descriptions and transcript
-            var amenities = Set<String>()
-            for scene in videoAnalysis.scenes {
-                if scene.description.contains("pool") { amenities.insert("Pool") }
-                if scene.description.contains("gym") { amenities.insert("Gym") }
-                if scene.description.contains("parking") { amenities.insert("Secure Parking") }
-                if scene.description.contains("garden") { amenities.insert("Garden") }
+            var titleComponents: [String] = []
+            for scene in videoAnalysis.scenes where scene.description.contains("exterior") || scene.description.contains("interior") {
+                titleComponents.append(scene.description)
             }
             
-            // Add property-specific amenities if available
-            if let propertyAmenities = property?.amenities {
-                for (amenity, hasAmenity) in propertyAmenities {
-                    if hasAmenity {
-                        amenities.insert(amenity)
+            if let transcript = videoAnalysis.transcript {
+                let sentimentAnalysis = try await cloudService.analyzeContent(text: transcript)
+                logger.info("Content sentiment analysis completed with score: \(sentimentAnalysis.score)")
+                
+                let title = titleComponents.isEmpty ? 
+                    "Stunning Property Tour" : 
+                    "Beautiful \(titleComponents.first ?? "Home") Showcase"
+                
+                let description = sentimentAnalysis.score > 0 ?
+                    "Experience this exceptional property featuring \(titleComponents.joined(separator: ", ").lowercased()). \(transcript.prefix(200))..." :
+                    "Discover this unique property with \(titleComponents.joined(separator: ", ").lowercased()). \(transcript.prefix(200))..."
+                
+                // Extract amenities from scene descriptions and transcript
+                var amenities = Set<String>()
+                for scene in videoAnalysis.scenes {
+                    if scene.description.contains("pool") { amenities.insert("Pool") }
+                    if scene.description.contains("gym") { amenities.insert("Gym") }
+                    if scene.description.contains("parking") { amenities.insert("Secure Parking") }
+                    if scene.description.contains("garden") { amenities.insert("Garden") }
+                }
+                
+                // Add property-specific amenities if available
+                if let propertyAmenities = property?.amenities {
+                    for (amenity, hasAmenity) in propertyAmenities {
+                        if hasAmenity {
+                            amenities.insert(amenity)
+                        }
                     }
+                }
+                
+                logger.info("Generated content suggestions with \(amenities.count) amenities detected")
+                return (title: title, description: description, amenities: Array(amenities))
+            }
+            
+            logger.error("No transcript available for content generation")
+            throw NSError(domain: "AIAssistedEditorService", code: -1, 
+                         userInfo: [NSLocalizedDescriptionKey: "No transcript available for content generation"])
+        } catch {
+            logger.error("Failed to generate content suggestions: \(error.localizedDescription)")
+            Crashlytics.crashlytics().record(error: error)
+            throw error
+        }
+    }
+    
+    public func extractKeyFeatures(from transcript: String) async throws -> VideoFeatures {
+        logger.info("Extracting key features from transcript")
+        do {
+            // Use Google Cloud Natural Language API to analyze the transcript
+            let analysis = try await cloudService.analyzeContent(text: transcript)
+            
+            // Extract entities and categorize them
+            var amenities: [String] = []
+            var locationDetails: [String] = []
+            var propertyFeatures: [String] = []
+            
+            for entity in analysis.entities {
+                switch entity.type.lowercased() {
+                case "location":
+                    locationDetails.append(entity.name)
+                case "consumer_good", "other":
+                    if entity.name.lowercased().contains("bedroom") || 
+                       entity.name.lowercased().contains("bathroom") ||
+                       entity.name.lowercased().contains("kitchen") {
+                        amenities.append(entity.name)
+                    } else {
+                        propertyFeatures.append(entity.name)
+                    }
+                default:
+                    break
                 }
             }
             
-            return (title: title, description: description, amenities: Array(amenities))
+            // Generate title
+            let title = locationDetails.isEmpty ? "Property Tour" : "Tour of \(locationDetails.first!)"
+            
+            // Generate description
+            var description = "This property features"
+            if !amenities.isEmpty {
+                description += " \(amenities.joined(separator: ", "))"
+            }
+            if !propertyFeatures.isEmpty {
+                description += " with \(propertyFeatures.joined(separator: ", "))"
+            }
+            description += "."
+            
+            logger.info("Successfully extracted features: \(amenities.count) amenities, \(propertyFeatures.count) features")
+            return VideoFeatures(title: title, description: description, amenities: amenities)
+        } catch {
+            logger.error("Failed to extract features: \(error.localizedDescription)")
+            Crashlytics.crashlytics().record(error: error)
+            throw error
         }
-        
-        // Fallback if no transcript available
-        return (
-            title: "Stunning Property Tour",
-            description: "Explore this beautiful property featuring \(titleComponents.joined(separator: ", ").lowercased()).",
-            amenities: ["Parking", "Modern Appliances"]
-        )
     }
 }

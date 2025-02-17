@@ -35,6 +35,14 @@ public struct AIVideoDescriptionView: View {
                 Text("AI Video Description")
                     .font(.title)
                 
+                if !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                }
+                
                 // Editable Suggested Title Section
                 VStack(alignment: .leading) {
                     Text("Suggested Video Title")
@@ -43,19 +51,57 @@ public struct AIVideoDescriptionView: View {
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                     Button(action: { saveTitle() }) {
                         Text("Save Title")
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.blue)
+                            .cornerRadius(8)
                     }
+                    .disabled(isSaving)
                 }
+                .padding()
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(12)
                 
                 // Editable Suggested Description Section
                 VStack(alignment: .leading) {
-                    Text("Suggested Video Description")
+                    Text("Suggested Description")
                         .font(.headline)
                     TextEditor(text: $suggestedDescription)
                         .frame(height: 100)
-                        .border(Color.gray, width: 1)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.2))
+                        )
                     Button(action: { saveDescription() }) {
                         Text("Save Description")
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.blue)
+                            .cornerRadius(8)
                     }
+                    .disabled(isSaving)
+                }
+                .padding()
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(12)
+                
+                if !suggestions.amenities.isEmpty {
+                    VStack(alignment: .leading) {
+                        Text("Detected Amenities")
+                            .font(.headline)
+                        ForEach(suggestions.amenities, id: \.self) { amenity in
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text(amenity)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(12)
                 }
                 
                 // Properties Section
@@ -91,60 +137,49 @@ public struct AIVideoDescriptionView: View {
                     Text("Finalize Video Description")
                         .bold()
                 }
-                
-                if isSaving {
-                    ProgressView("Saving...")
-                }
-                
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                }
-                
-                Spacer()
             }
             .padding()
         }
+        .disabled(isSaving)
+        .overlay(
+            Group {
+                if isSaving {
+                    ProgressView("Saving...")
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(8)
+                        .shadow(radius: 4)
+                }
+            }
+        )
         .onAppear {
             fetchProperties()
         }
     }
     
-    // Save suggested title
-    func saveTitle() {
-        guard let videoId = video.id else {
-            errorMessage = "Video ID not found."
-            return
-        }
-        isSaving = true
-        
+    private func saveTitle() {
         Task {
+            isSaving = true
+            errorMessage = ""
             do {
-                try await databaseService.updateVideo(id: videoId, data: ["suggestedTitle": suggestedTitle])
-                isSaving = false
+                try await databaseService.updateVideo(id: video.id!, data: ["title": suggestedTitle])
             } catch {
-                isSaving = false
-                errorMessage = "Error saving title: \(error.localizedDescription)"
+                errorMessage = "Failed to save title: \(error.localizedDescription)"
             }
+            isSaving = false
         }
     }
     
-    // Save suggested description
-    func saveDescription() {
-        guard let videoId = video.id else {
-            errorMessage = "Video ID not found."
-            return
-        }
-        isSaving = true
-        
+    private func saveDescription() {
         Task {
+            isSaving = true
+            errorMessage = ""
             do {
-                try await databaseService.updateVideo(id: videoId, data: ["suggestedDescription": suggestedDescription])
-                isSaving = false
+                try await databaseService.updateVideo(id: video.id!, data: ["description": suggestedDescription])
             } catch {
-                isSaving = false
-                errorMessage = "Error saving description: \(error.localizedDescription)"
+                errorMessage = "Failed to save description: \(error.localizedDescription)"
             }
+            isSaving = false
         }
     }
     

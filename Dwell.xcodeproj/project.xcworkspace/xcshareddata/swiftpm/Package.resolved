@@ -1,5 +1,5 @@
 {
-  "originHash" : "a1569f9895aa2be8e24832f98525d5da4eb90b5d158a82691c15b47eb72a13d7",
+  "originHash" : "61cc6c9786e8f68f39a4275814ef9903f7b751e21de39291f4619ea461691e2f",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -35,6 +35,15 @@
       "state" : {
         "revision" : "fe727587518729046fc1465625b9afd80b5ab361",
         "version" : "10.28.0"
+      }
+    },
+    {
+      "identity" : "googlecloudlogging",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/DnV1eX/GoogleCloudLogging.git",
+      "state" : {
+        "revision" : "4c0d4076a7532c2177a6b3d0e964dfc36436695d",
+        "version" : "1.1.2"
       }
     },
     {
@@ -107,6 +116,15 @@
       "state" : {
         "revision" : "540318ecedd63d883069ae7f1ed811a2df00b6ac",
         "version" : "2.4.0"
+      }
+    },
+    {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "96a2f8a0fa41e9e09af4585e2724c4e825410b91",
+        "version" : "1.6.2"
       }
     },
     {

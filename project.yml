@@ -8,6 +8,12 @@ packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
     from: 10.19.0
+  GoogleCloudLogging:
+    url: "https://github.com/DnV1eX/GoogleCloudLogging.git"
+    from: 1.0.0
+  SwiftLog:
+    url: "https://github.com/apple/swift-log.git"
+    from: 1.5.3
 targets:
   Core_iOS:
     type: framework
@@ -22,6 +28,12 @@ targets:
         product: FirebaseStorage
       - package: Firebase
         product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseCrashlytics
+      - package: GoogleCloudLogging
+        product: GoogleCloudLogging
+      - package: SwiftLog
+        product: Logging
     settings:
       base:
         DEFINES_MODULE: YES
@@ -51,6 +63,10 @@ targets:
         product: FirebaseStorage
       - package: Firebase
         product: FirebaseFirestore
+      - package: GoogleCloudLogging
+        product: GoogleCloudLogging
+      - package: SwiftLog
+        product: Logging
     settings:
       base:
         DEFINES_MODULE: YES
@@ -172,6 +188,9 @@ targets:
       - path: GoogleService-Info.plist
         type: file
         buildPhase: resources
+      - path: ServiceAccountKey.json
+        type: file
+        buildPhase: resources
     dependencies:
       - target: Core_iOS
         link: true
@@ -182,6 +201,10 @@ targets:
       - target: Views_iOS
         link: true
         embed: true
+      - package: GoogleCloudLogging
+        product: GoogleCloudLogging
+      - package: SwiftLog
+        product: Logging
     settings:
       base:
         INFOPLIST_FILE: Sources/Info.plist

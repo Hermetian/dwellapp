@@ -3,6 +3,8 @@ import Foundation
 import AVFoundation
 import Combine
 import FirebaseFirestore
+import FirebaseCrashlytics
+import os
 
 @MainActor
 public final class VideoViewModel: ObservableObject {
@@ -231,23 +233,69 @@ public final class VideoViewModel: ObservableObject {
     }
     
     public func processVideoWithAI(video: Video) async throws {
+        let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.dwell.app", category: "VideoViewModel.AI")
+        logger.info("Starting AI processing for video: \(video.id ?? "unknown")")
+        
         guard let videoId = video.id else {
-            print("No video ID available")
-            return
+            let error = NSError(domain: "VideoViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "No video ID available"])
+            logger.error("Failed: \(error.localizedDescription)")
+            Crashlytics.crashlytics().record(error: error)
+            throw error
         }
         
         guard let url = URL(string: video.videoUrl) else {
-            print("Invalid video URL")
-            return
+            let error = NSError(domain: "VideoViewModel", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid video URL"])
+            logger.error("Failed: \(error.localizedDescription), URL: \(video.videoUrl)")
+            Crashlytics.crashlytics().record(error: error)
+            throw error
         }
         
+        logger.info("Processing video URL: \(url.absoluteString)")
         aiProcessingVideoId = videoId
         
-        let aiService = try AIAssistedEditorService(videoService: videoService)
-        let suggestions = try await aiService.getContentSuggestions(for: url, property: nil)
+        defer {
+            aiProcessingVideoId = nil
+        }
         
-        aiProcessedResults[videoId] = suggestions
-        aiProcessingVideoId = nil
+        do {
+            logger.info("Initializing AIAssistedEditorService")
+            let aiService = try AIAssistedEditorService(videoService: videoService)
+            
+            logger.info("Starting video content analysis")
+            let analysis = try await aiService.analyzeVideoContent(videoURL: url)
+            logger.info("Video analysis completed. Transcript available: \(analysis.transcript != nil)")
+            
+            // Generate title and description based on analysis
+            var title = "Property Tour"
+            var description = ""
+            var amenities: [String] = []
+            
+            if let transcript = analysis.transcript {
+                logger.info("Processing transcript of length: \(transcript.count)")
+                // Use transcript to identify key features
+                let features = try await aiService.extractKeyFeatures(from: transcript)
+                logger.info("Features extracted - Title: \(features.title), Amenities count: \(features.amenities.count)")
+                title = features.title
+                description = features.description
+                amenities = features.amenities
+            } else {
+                logger.warning("No transcript available for feature extraction")
+            }
+            
+            logger.info("Saving AI processing results")
+            aiProcessedResults[videoId] = (title: title, description: description, amenities: amenities)
+            logger.info("AI processing completed successfully")
+        } catch {
+            logger.error("AI processing failed: \(error.localizedDescription)")
+            if let nsError = error as NSError? {
+                logger.error("Error details - Domain: \(nsError.domain), Code: \(nsError.code)")
+                if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+                    logger.error("Underlying error: \(underlyingError)")
+                }
+            }
+            Crashlytics.crashlytics().record(error: error)
+            throw error
+        }
     }
     
     public func toggleVideoLike(videoId: String, userId: String) async throws {
