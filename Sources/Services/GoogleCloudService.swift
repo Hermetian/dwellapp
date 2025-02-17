@@ -18,10 +18,10 @@ public class GoogleCloudService {
     private let logger = Logger(label: "GoogleCloudService")
     
     private static func findCredentialsPath(for type: GoogleCloudService.Type) -> String? {
-        if let frameworkPath = Bundle(for: type).path(forResource: "dwell-app-8cfa8-de4ec234f734", ofType: "json") {
+        if let frameworkPath = Bundle(for: type).path(forResource: "serviceAccountKey", ofType: "json") {
             return frameworkPath
         }
-        return Bundle.main.path(forResource: "dwell-app-8cfa8-de4ec234f734", ofType: "json")
+        return Bundle.main.path(forResource: "serviceAccountKey", ofType: "json")
     }
     
     public init() throws {
@@ -79,10 +79,12 @@ public class GoogleCloudService {
         
         let signatureInput = "\(headerBase64).\(claimsBase64)"
         
-        // Remove header and footer from private key
-        let cleanPrivateKey = privateKey
-            .replacingOccurrences(of: "-----BEGIN PRIVATE KEY-----\n", with: "")
-            .replacingOccurrences(of: "\n-----END PRIVATE KEY-----\n", with: "")
+        // New robust implementation:
+        let formattedPrivateKey = privateKey.replacingOccurrences(of: "\\n", with: "\n")
+        let keyLines = formattedPrivateKey.components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0 != "-----BEGIN PRIVATE KEY-----" && $0 != "-----END PRIVATE KEY-----" && !$0.isEmpty }
+        let cleanPrivateKey = keyLines.joined()
         
         guard let keyData = Data(base64Encoded: cleanPrivateKey) else {
             throw NSError(domain: "GoogleCloudService", code: -1,

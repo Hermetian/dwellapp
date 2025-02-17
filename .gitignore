@@ -113,6 +113,7 @@ injected_container.xcconfig
 *.log
 .idea/
 dwell-app-8cfa8-de4ec234f734.json
+googleCloudAccountKey.json
 /Sources/Resources/sample_property.mp4
 serviceAccountKey.json
 package-lock.json

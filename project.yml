@@ -188,7 +188,10 @@ targets:
       - path: GoogleService-Info.plist
         type: file
         buildPhase: resources
-      - path: ServiceAccountKey.json
+      - path: serviceAccountKey.json
+        type: file
+        buildPhase: resources
+      - path: googleCloudAccountKey.json
         type: file
         buildPhase: resources
     dependencies:
