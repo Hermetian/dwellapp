@@ -112,7 +112,7 @@ public final class PropertyViewModel: ObservableObject {
     }
     
     // Consolidated property-level favorite toggling. All UI actions (from PropertyCard, PropertyDetailView, or even video-level controls) should call this method.
-    public func toggleFavorite(propertyId: String, userId: String) async throws {
+    public func toggleFavorite(propertyId: String, userId: String, fromVideo: Bool = false) async throws {
         // CHECKLIST ITEM 2: Ensure valid propertyId
         guard !propertyId.isEmpty else {
             throw NSError(domain: "PropertyViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "Property ID is missing. Cannot toggle favorite."])
@@ -124,29 +124,24 @@ public final class PropertyViewModel: ObservableObject {
         do {
             // Get the current state from the database
             let isFavorite = try await databaseService.isPropertyFavorited(userId: userId, propertyId: propertyId)
-            let newFavoriteState = !isFavorite
             
-            try await databaseService.togglePropertyFavorite(
-                userId: userId,
-                propertyId: propertyId,
-                isFavorite: newFavoriteState
-            )
-            
-            // If the property was just favorited (not unfavorited), create/update conversation
-            if newFavoriteState {
-                // Get the property to access its managerId
-                if let property = properties.first(where: { $0.id == propertyId }) {
-                    // Only create a conversation if the user is not liking their own property
-                    if property.managerId != userId {
-                        // Create or get conversation directly through DatabaseService
+            if fromVideo {
+                // For video actions: only add favorite if not already favorited
+                if !isFavorite {
+                    try await databaseService.togglePropertyFavorite(
+                        userId: userId,
+                        propertyId: propertyId,
+                        isFavorite: true
+                    )
+                    
+                    // Create conversation if needed
+                    if let property = properties.first(where: { $0.id == propertyId }), property.managerId != userId {
                         let channelId = try await databaseService.createOrGetConversation(
                             propertyId: propertyId,
                             tenantId: userId,
                             managerId: property.managerId,
                             videoId: property.videoIds.first
                         )
-                        
-                        // Create a message expressing interest in the property
                         let action = property.type.lowercased().contains("rent") ? "renting" : "buying"
                         let message = ChatMessage(
                             id: UUID().uuidString,
@@ -154,8 +149,34 @@ public final class PropertyViewModel: ObservableObject {
                             senderId: userId,
                             text: "Hello, I'm interested in \(action) your \(property.title)"
                         )
-                        
-                        // Send message directly through DatabaseService
+                        try await databaseService.sendMessage(message)
+                    }
+                }
+                // If already favorited, do nothing
+            } else {
+                let newFavoriteState = !isFavorite
+                try await databaseService.togglePropertyFavorite(
+                    userId: userId,
+                    propertyId: propertyId,
+                    isFavorite: newFavoriteState
+                )
+                
+                // If the property was just favorited (not unfavorited), create/update conversation
+                if newFavoriteState {
+                    if let property = properties.first(where: { $0.id == propertyId }), property.managerId != userId {
+                        let channelId = try await databaseService.createOrGetConversation(
+                            propertyId: propertyId,
+                            tenantId: userId,
+                            managerId: property.managerId,
+                            videoId: property.videoIds.first
+                        )
+                        let action = property.type.lowercased().contains("rent") ? "renting" : "buying"
+                        let message = ChatMessage(
+                            id: UUID().uuidString,
+                            channelId: channelId,
+                            senderId: userId,
+                            text: "Hello, I'm interested in \(action) your \(property.title)"
+                        )
                         try await databaseService.sendMessage(message)
                     }
                 }

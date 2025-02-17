@@ -189,8 +189,51 @@ public class GoogleCloudService {
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
         let (data, _) = try await session.data(for: request)
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let annotationResults = json["annotationResults"] as? [[String: Any]],
+        let initialResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        
+        // If an operation name is returned, poll for completion
+        if let operationName = initialResponse?["name"] as? String {
+            let finalResponse = try await pollOperation(operationName: operationName)
+            return try parseVideoAnalysisResult(from: finalResponse)
+        } else {
+            // Synchronous response
+            return try parseVideoAnalysisResult(from: initialResponse)
+        }
+    }
+    
+    // Helper function to poll the Google Cloud operation until it's done
+    private func pollOperation(operationName: String) async throws -> [String: Any] {
+        let pollEndpoint = "\(baseVideoURL)/operations/\(operationName)"
+        var request = try await authorizedRequest(url: URL(string: pollEndpoint)!)
+        request.httpMethod = "GET"
+        
+        // Poll for up to 10 attempts, waiting 1 second between tries
+        for _ in 0..<10 {
+            let (data, _) = try await session.data(for: request)
+            let response = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+            if let done = response["done"] as? Bool, done {
+                return response
+            }
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        }
+        throw NSError(domain: "GoogleCloudService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation timed out"]) 
+    }
+    
+    // Helper function to parse the video analysis result from the API response
+    private func parseVideoAnalysisResult(from response: [String: Any]?) throws -> VideoAnalysisResult {
+        guard let response = response else {
+            throw NSError(domain: "GoogleCloudService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Empty response from video analysis"])
+        }
+        
+        // Check if the response contains a "response" key
+        let annotationContainer: [String: Any]
+        if let resp = response["response"] as? [String: Any] {
+            annotationContainer = resp
+        } else {
+            annotationContainer = response
+        }
+        
+        guard let annotationResults = annotationContainer["annotationResults"] as? [[String: Any]],
               let firstResult = annotationResults.first else {
             throw NSError(domain: "GoogleCloudService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid video analysis response"])
         }
@@ -200,13 +243,15 @@ public class GoogleCloudService {
         if let shotAnnotations = firstResult["shotAnnotations"] as? [[String: Any]] {
             for shot in shotAnnotations {
                 if let startTimeStr = shot["startTimeOffset"] as? String,
-                   let endTimeStr = shot["endTimeOffset"] as? String,
-                   let startTime = Double(startTimeStr.dropLast()),
-                   let endTime = Double(endTimeStr.dropLast()) {
-                    let scene = Scene(startTime: CMTime(seconds: startTime, preferredTimescale: 600),
-                                      endTime: CMTime(seconds: endTime, preferredTimescale: 600),
-                                      description: "Shot annotation scene")
-                    scenes.append(scene)
+                   let endTimeStr = shot["endTimeOffset"] as? String {
+                    let startStr = startTimeStr.trimmingCharacters(in: CharacterSet(charactersIn: "s"))
+                    let endStr = endTimeStr.trimmingCharacters(in: CharacterSet(charactersIn: "s"))
+                    if let startTime = Double(startStr), let endTime = Double(endStr) {
+                        let scene = Scene(startTime: CMTime(seconds: startTime, preferredTimescale: 600),
+                                          endTime: CMTime(seconds: endTime, preferredTimescale: 600),
+                                          description: "Shot annotation scene")
+                        scenes.append(scene)
+                    }
                 }
             }
         }
@@ -221,7 +266,7 @@ public class GoogleCloudService {
             transcript = transcriptText
         }
         
-        // Quality issues parsing can be added here; for now, leave it empty
+        // For now, quality issues parsing is left as an empty array. This could be enhanced further.
         let qualityIssues: [String] = []
         
         return VideoAnalysisResult(scenes: scenes, transcript: transcript, qualityIssues: qualityIssues)

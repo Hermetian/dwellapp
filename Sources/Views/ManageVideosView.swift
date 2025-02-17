@@ -253,7 +253,12 @@ private struct VideoRowView: View {
         .padding(.vertical, 4)
         .sheet(isPresented: $showAIDescription) {
             if let videoId = video.id, let suggestions = viewModel.aiProcessedResults[videoId] {
-                AIVideoDescriptionView(video: video, suggestions: suggestions)
+                AIVideoDescriptionView(
+                    video: video,
+                    suggestions: suggestions,
+                    databaseService: DatabaseService(),
+                    authService: AuthService()
+                )
             }
         }
     }
